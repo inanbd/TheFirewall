@@ -26,6 +26,27 @@ public partial class App : Application
         IsDemo = args.Contains("--demo");
         var screenshotIndex = Array.FindIndex(e.Args, a => a.Equals("--screenshots", StringComparison.OrdinalIgnoreCase));
         bool screenshots = screenshotIndex >= 0;
+        ScreenshotRunner.IsRunning = screenshots;
+
+        try
+        {
+            Start(e, args, screenshots, screenshotIndex);
+        }
+        catch (Exception ex)
+        {
+            LogError(ex);
+            if (!screenshots)
+            {
+                MessageBox.Show("TheFirewall could not start:\n\n" + ex.Message, "TheFirewall", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+
+            singleInstance?.Dispose();
+            Shutdown(1);
+        }
+    }
+
+    private void Start(StartupEventArgs e, HashSet<string> args, bool screenshots, int screenshotIndex)
+    {
 
         DispatcherUnhandledException += OnUnhandledException;
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/TheFirewall;component/Themes/Derived.xaml", UriKind.Relative) });
@@ -152,17 +173,22 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    private static void LogError(Exception exception)
     {
         try
         {
             var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TheFirewall");
             Directory.CreateDirectory(dir);
-            File.AppendAllText(Path.Combine(dir, "app-errors.log"), $"{DateTime.Now:O} {e.Exception}{Environment.NewLine}");
+            File.AppendAllText(Path.Combine(dir, "app-errors.log"), $"{DateTime.Now:O} {exception}{Environment.NewLine}");
         }
         catch (Exception)
         {
         }
+    }
+
+    private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        LogError(e.Exception);
 
         if (ScreenshotRunner.IsRunning)
         {

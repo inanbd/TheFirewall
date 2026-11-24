@@ -45,9 +45,11 @@ jobs:
         run: |
           $out = Join-Path $pwd "artifacts/screenshots"
           $p = Start-Process -FilePath artifacts/publish/win-x64/TheFirewall.exe -ArgumentList @('--screenshots', "`"$out`"") -PassThru
-          if (-not $p.WaitForExit(180000)) { $p.Kill(); throw "The app did not finish rendering within 3 minutes." }
+          $finished = $p.WaitForExit(180000)
+          if (-not $finished) { $p.Kill() }
           $log = Join-Path $env:LOCALAPPDATA "TheFirewall/app-errors.log"
           if (Test-Path $log) { Get-Content $log }
+          if (-not $finished) { throw "The app did not finish rendering within 3 minutes." }
           if (Test-Path $out) { Get-ChildItem $out | Format-Table Name, Length }
           if ($p.ExitCode -ne 0) { throw "UI smoke test failed with exit code $($p.ExitCode)" }
           if ((Get-ChildItem $out -Filter *.png).Count -lt 10) { throw "Expected at least 10 screenshots." }

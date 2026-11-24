@@ -29,13 +29,13 @@ public sealed partial class CountriesViewModel : PageViewModel
 
     public CountriesViewModel(AppServices services) : base(services)
     {
-        Region = "All regions";
         View = CollectionViewSource.GetDefaultView(Countries);
         View.Filter = o => o is CountryItem c &&
                            (Region is null or "All regions" || c.Region == Region) &&
                            (!ShowSelectedOnly || c.IsSelected) &&
                            (string.IsNullOrWhiteSpace(Search) || c.Name.Contains(Search.Trim(), StringComparison.CurrentCultureIgnoreCase) ||
                             c.Code.Equals(Search.Trim(), StringComparison.OrdinalIgnoreCase));
+        Region = "All regions";
     }
 
     public override string Key => "countries";

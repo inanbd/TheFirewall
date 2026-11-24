@@ -14,7 +14,7 @@ namespace TheFirewall.App;
 /// </summary>
 internal static class ScreenshotRunner
 {
-    public static bool IsRunning { get; private set; }
+    public static bool IsRunning { get; set; }
 
     public static async Task RunAsync(App app, MainViewModel viewModel, string outputDirectory)
     {
