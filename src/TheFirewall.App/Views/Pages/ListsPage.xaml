@@ -53,8 +53,8 @@
             <Grid>
               <DataGrid x:Name="WhiteGrid" Style="{StaticResource ListGrid}" ItemsSource="{Binding Whitelist}">
                 <DataGrid.Columns>
-                  <DataGridTextColumn Header="Address" Binding="{Binding Value}" Width="240" FontFamily="Cascadia Mono, Consolas" />
-                  <DataGridTextColumn Header="Comment" Binding="{Binding Comment}" Width="*" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Address" Binding="{Binding Value}" Width="240" FontFamily="Cascadia Mono, Consolas" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Comment" Binding="{Binding Comment}" Width="*" />
                   <DataGridTemplateColumn Header="Added" Width="130" CellTemplate="{StaticResource AddedCell}" SortMemberPath="AddedUtc" />
                 </DataGrid.Columns>
               </DataGrid>
@@ -96,8 +96,8 @@
             <Grid>
               <DataGrid x:Name="BlackGrid" Style="{StaticResource ListGrid}" ItemsSource="{Binding Blacklist}">
                 <DataGrid.Columns>
-                  <DataGridTextColumn Header="Address" Binding="{Binding Value}" Width="240" FontFamily="Cascadia Mono, Consolas" />
-                  <DataGridTextColumn Header="Comment" Binding="{Binding Comment}" Width="*" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Address" Binding="{Binding Value}" Width="240" FontFamily="Cascadia Mono, Consolas" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Comment" Binding="{Binding Comment}" Width="*" />
                   <DataGridTemplateColumn Header="Added" Width="130" CellTemplate="{StaticResource AddedCell}" SortMemberPath="AddedUtc" />
                 </DataGrid.Columns>
               </DataGrid>

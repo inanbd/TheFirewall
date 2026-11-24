@@ -270,6 +270,12 @@
   </Style>
 
 
+  <!-- Text cells of data grids, vertically centred like the template cells -->
+  <Style x:Key="CellText" TargetType="TextBlock">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+  </Style>
+
   <!-- Small header used above form fields -->
   <Style x:Key="FieldLabel" TargetType="TextBlock">
     <Setter Property="FontSize" Value="13" />

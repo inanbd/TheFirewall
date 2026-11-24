@@ -35,7 +35,7 @@ public sealed partial class DurationField : ObservableObject
             field.Amount = 1;
             field.Unit = DurationUnit.Days;
         }
-        else if (value.TotalDays >= 7 && value.TotalDays % 7 == 0)
+        else if (value.TotalDays >= 14 && value.TotalDays % 7 == 0)
         {
             field.Amount = value.TotalDays / 7;
             field.Unit = DurationUnit.Weeks;

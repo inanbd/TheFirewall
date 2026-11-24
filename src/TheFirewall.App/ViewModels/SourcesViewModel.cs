@@ -97,10 +97,23 @@ public sealed partial class SourcesViewModel(AppServices services) : PageViewMod
         {
             Groups.Add(new SourceGroup(group.Key, group
                 .OrderBy(s => s.Definition.EventKind)
-                .ThenByDescending(s => s.Status.State == SourceState.Active)
+                .ThenBy(s => s.IsBuiltIn ? BuiltInOrder(s.Definition.Id) : int.MaxValue)
                 .ThenBy(s => s.Definition.Name, StringComparer.CurrentCulture)
                 .Select(s => new SourceItem(s)).ToList()));
         }
+    }
+
+    private static int BuiltInOrder(string id)
+    {
+        for (int i = 0; i < BuiltInSources.All.Count; i++)
+        {
+            if (BuiltInSources.All[i].Id == id)
+            {
+                return i;
+            }
+        }
+
+        return int.MaxValue;
     }
 
     [RelayCommand]

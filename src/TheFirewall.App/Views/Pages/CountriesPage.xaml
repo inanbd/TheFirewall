@@ -54,20 +54,26 @@
     <!-- Filter -->
     <Grid Grid.Row="2" Margin="0,0,0,10">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="260" />
+        <ColumnDefinition Width="*" MaxWidth="300" />
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="Auto" />
-        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="*" MinWidth="8" />
         <ColumnDefinition Width="Auto" />
       </Grid.ColumnDefinitions>
-      <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <Grid MinWidth="140">
         <TextBox x:Name="SearchBox" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=150}" VerticalContentAlignment="Center" />
         <TextBlock Text="Find a country…" IsHitTestVisible="False" Margin="12,0" VerticalAlignment="Center"
                    Style="{StaticResource Caption}" Visibility="{Binding Text, ElementName=SearchBox, Converter={StaticResource EmptyToVisible}}" />
       </Grid>
-      <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="150" ItemsSource="{Binding Regions}" SelectedItem="{Binding Region}" SelectedIndex="0" />
+      <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="140" ItemsSource="{Binding Regions}" SelectedItem="{Binding Region}" />
       <CheckBox Grid.Column="2" Style="{StaticResource ToggleSwitch}" Content="Selected only" IsChecked="{Binding ShowSelectedOnly}" Margin="16,0,0,0" VerticalAlignment="Center" />
-      <TextBlock Grid.Column="3" Text="{Binding SelectionSummary}" Style="{StaticResource Caption}" Margin="16,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+      <TextBlock Grid.Row="1" Grid.ColumnSpan="5" Margin="2,8,0,0" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap">
+        <Run Text="Selected:" FontWeight="SemiBold" /> <Run Text="{Binding SelectionSummary, Mode=OneWay}" />
+      </TextBlock>
       <Button Grid.Column="4" Style="{StaticResource LinkButton}" Content="Clear selection" Command="{Binding ClearSelectionCommand}" VerticalAlignment="Center" />
     </Grid>
 

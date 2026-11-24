@@ -30,11 +30,15 @@
       </Grid>
 
       <Border Style="{StaticResource InfoBar}" Margin="0,16,0,16">
-        <StackPanel Orientation="Horizontal">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
           <TextBlock Text="&#xE946;" Style="{StaticResource Glyph}" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" VerticalAlignment="Top" Margin="0,2,0,0" />
-          <TextBlock Margin="10,0,0,0" Style="{StaticResource Body}" MaxWidth="760"
+          <TextBlock Grid.Column="1" Margin="10,0,0,0" Style="{StaticResource Body}"
                      Text="Feeds can contain mistakes. Whitelisted and local addresses are always excluded. A feed is any http(s) URL that returns one address, CIDR block or range per line." />
-        </StackPanel>
+        </Grid>
       </Border>
 
       <TextBlock Text="{Binding LoadError}" Style="{StaticResource Caption}" Visibility="{Binding LoadError, Converter={StaticResource NullToVisibility}}" Margin="0,0,0,8" />

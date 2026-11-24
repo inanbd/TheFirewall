@@ -102,7 +102,11 @@ internal static class ScreenshotRunner
 
     private static void Save(Window window, string path)
     {
-        if (window.Content is not FrameworkElement content || content.ActualWidth < 1 || content.ActualHeight < 1)
+        // The window's template root covers the whole client area, including the content's margins.
+        var content = VisualTreeHelper.GetChildrenCount(window) > 0 && VisualTreeHelper.GetChild(window, 0) is FrameworkElement root
+            ? root
+            : window.Content as FrameworkElement;
+        if (content is null || content.ActualWidth < 1 || content.ActualHeight < 1)
         {
             return;
         }

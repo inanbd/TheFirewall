@@ -88,8 +88,8 @@
           <DataGrid x:Name="ExpressionsGrid" AutoGenerateColumns="False" CanUserAddRows="True" CanUserDeleteRows="True" HeadersVisibility="Column"
                     Margin="0,8,0,0" MinHeight="140" GridLinesVisibility="Horizontal">
             <DataGrid.Columns>
-              <DataGridTextColumn Header="XPath" Binding="{Binding XPath}" Width="*" FontFamily="Cascadia Mono, Consolas" />
-              <DataGridTextColumn Header="Regular expression" Binding="{Binding Regex}" Width="2*" FontFamily="Cascadia Mono, Consolas" />
+              <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="XPath" Binding="{Binding XPath}" Width="*" FontFamily="Cascadia Mono, Consolas" />
+              <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Regular expression" Binding="{Binding Regex}" Width="2*" FontFamily="Cascadia Mono, Consolas" />
               <DataGridCheckBoxColumn Header="Optional" Binding="{Binding Optional}" Width="80" />
             </DataGrid.Columns>
           </DataGrid>

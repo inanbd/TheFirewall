@@ -29,6 +29,7 @@ public sealed partial class CountriesViewModel : PageViewModel
 
     public CountriesViewModel(AppServices services) : base(services)
     {
+        Region = "All regions";
         View = CollectionViewSource.GetDefaultView(Countries);
         View.Filter = o => o is CountryItem c &&
                            (Region is null or "All regions" || c.Region == Region) &&

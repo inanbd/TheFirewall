@@ -31,6 +31,7 @@ public partial class AddressDetailsWindow : Window
             CountryCode.Text = result.Country ?? "--";
             CountryText.Text = result.IsInternal ? "Local network address" : Countries.GetName(result.Country);
             ActivityGrid.ItemsSource = result.RecentActivity;
+            EmptyText.Visibility = result.RecentActivity.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
             var record = result.Record;
             string title, detail;
