@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TheFirewall.Core/TheFirewall.Core.csproj" />
+    <Project Path="src/TheFirewall.Service/TheFirewall.Service.csproj" />
+    <Project Path="src/TheFirewall.App/TheFirewall.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TheFirewall.Core.Tests/TheFirewall.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+  </Folder>
+</Solution>

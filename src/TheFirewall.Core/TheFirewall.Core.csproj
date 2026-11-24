@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>TheFirewall.Core</RootNamespace>
+    <AssemblyName>TheFirewall.Core</AssemblyName>
+    <Description>Core engine for TheFirewall: login-failure detection, ban engine, firewall planning, storage and IPC contracts.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TheFirewall.Core.Tests" />
+  </ItemGroup>
+
+</Project>
