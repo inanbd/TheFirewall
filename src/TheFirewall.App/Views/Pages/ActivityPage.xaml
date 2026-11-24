@@ -22,7 +22,7 @@
     <!-- Toolbar -->
     <Grid Grid.Row="1" Margin="0,16,0,12">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" MaxWidth="320" />
+        <ColumnDefinition Width="3*" MaxWidth="320" />
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" MinWidth="8" />
         <ColumnDefinition Width="Auto" />
@@ -33,7 +33,7 @@
             <KeyBinding Key="Enter" Command="{Binding ApplySearchCommand}" />
           </TextBox.InputBindings>
         </TextBox>
-        <TextBlock Text="Search address, user, source…" IsHitTestVisible="False" Margin="12,0" VerticalAlignment="Center"
+        <TextBlock Text="Search address, user, source…" IsHitTestVisible="False" Margin="12,0" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                    Style="{StaticResource Caption}" Visibility="{Binding Text, ElementName=SearchBox, Converter={StaticResource EmptyToVisible}}" />
       </Grid>
       <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="150" ItemsSource="{Binding Filters}" DisplayMemberPath="Value" SelectedValuePath="Key"
@@ -90,7 +90,7 @@
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTemplateColumn Header="Address" Width="185" SortMemberPath="IPAddress">
+            <DataGridTemplateColumn Header="Address" Width="205" SortMemberPath="IPAddress">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
                   <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Country, Converter={StaticResource CountryName}}">
@@ -103,7 +103,7 @@
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="90" />
+            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="95" />
             <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User name" Binding="{Binding UserName}" Width="120" />
             <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Details" Binding="{Binding Message}" Width="*" MinWidth="160" />
           </DataGrid.Columns>

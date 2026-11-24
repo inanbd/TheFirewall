@@ -29,7 +29,7 @@
         </Grid.ColumnDefinitions>
         <Grid>
           <TextBox x:Name="SearchBox" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=200}" VerticalContentAlignment="Center" />
-          <TextBlock Text="Find a monitor…" IsHitTestVisible="False" Margin="12,0" VerticalAlignment="Center"
+          <TextBlock Text="Find a monitor…" IsHitTestVisible="False" Margin="12,0" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                      Style="{StaticResource Caption}" Visibility="{Binding Text, ElementName=SearchBox, Converter={StaticResource EmptyToVisible}}" />
         </Grid>
         <TextBlock Grid.Column="1" Margin="16,0" VerticalAlignment="Center" Style="{StaticResource Caption}">

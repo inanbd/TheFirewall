@@ -54,7 +54,7 @@
     <!-- Filter -->
     <Grid Grid.Row="2" Margin="0,0,0,10">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*" MaxWidth="300" />
+        <ColumnDefinition Width="3*" MaxWidth="300" />
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="Auto" />
         <ColumnDefinition Width="*" MinWidth="8" />
@@ -66,7 +66,7 @@
       </Grid.RowDefinitions>
       <Grid MinWidth="140">
         <TextBox x:Name="SearchBox" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=150}" VerticalContentAlignment="Center" />
-        <TextBlock Text="Find a country…" IsHitTestVisible="False" Margin="12,0" VerticalAlignment="Center"
+        <TextBlock Text="Find a country…" IsHitTestVisible="False" Margin="12,0" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                    Style="{StaticResource Caption}" Visibility="{Binding Text, ElementName=SearchBox, Converter={StaticResource EmptyToVisible}}" />
       </Grid>
       <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="140" ItemsSource="{Binding Regions}" SelectedItem="{Binding Region}" />
@@ -83,7 +83,7 @@
         <ItemsControl ItemsSource="{Binding View}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
-              <WrapPanel ItemWidth="250" />
+              <WrapPanel ItemWidth="225" />
             </ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
@@ -97,7 +97,7 @@
                     <TextBlock Text="{Binding Code}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
                   </Border>
-                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="170" />
+                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="150" />
                 </StackPanel>
               </CheckBox>
             </DataTemplate>
