@@ -33,14 +33,14 @@
                  HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />
       <DataGrid x:Name="ActivityGrid" Style="{StaticResource ListGrid}">
         <DataGrid.Columns>
-          <DataGridTemplateColumn Header="Time" Width="140">
+          <DataGridTemplateColumn Header="Time" Width="140" MinWidth="140">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <TextBlock Text="{Binding TimeUtc, Converter={StaticResource LocalTime}, ConverterParameter=g}" VerticalAlignment="Center" />
               </DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
-          <DataGridTemplateColumn Header="Event" Width="130">
+          <DataGridTemplateColumn Header="Event" Width="130" MinWidth="130">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -51,8 +51,8 @@
               </DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
-          <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="90" />
-          <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User" Binding="{Binding UserName}" Width="110" />
+          <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="90" MinWidth="90" />
+          <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User" Binding="{Binding UserName}" Width="110" MinWidth="110" />
           <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Details" Binding="{Binding Message}" Width="*" />
         </DataGrid.Columns>
       </DataGrid>

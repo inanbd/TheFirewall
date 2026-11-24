@@ -93,11 +93,11 @@
                   <MouseBinding Gesture="LeftDoubleClick" Command="{Binding ShowDetailsCommand}" CommandParameter="{Binding SelectedItem, ElementName=BannedGrid}" />
                 </DataGrid.InputBindings>
                 <DataGrid.Columns>
-                  <DataGridTemplateColumn Header="Address" Width="205" SortMemberPath="IPAddress" CellTemplate="{StaticResource AddressCell}" />
-                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="95" />
-                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User names tried" Binding="{Binding UserNames}" Width="145" />
-                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Tries" Binding="{Binding FailedCount}" Width="70" />
-                  <DataGridTemplateColumn Header="Banned" Width="95" SortMemberPath="BanStartUtc">
+                  <DataGridTemplateColumn Header="Address" Width="205" MinWidth="205" SortMemberPath="IPAddress" CellTemplate="{StaticResource AddressCell}" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="95" MinWidth="95" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User names tried" Binding="{Binding UserNames}" Width="145" MinWidth="145" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Tries" Binding="{Binding FailedCount}" Width="70" MinWidth="70" />
+                  <DataGridTemplateColumn Header="Banned" Width="95" MinWidth="95" SortMemberPath="BanStartUtc">
                     <DataGridTemplateColumn.CellTemplate>
                       <DataTemplate>
                         <TextBlock Text="{Binding BanStartUtc, Converter={StaticResource RelativeTime}}" VerticalAlignment="Center"
@@ -105,7 +105,7 @@
                       </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                   </DataGridTemplateColumn>
-                  <DataGridTemplateColumn Header="Ends" Width="95" SortMemberPath="BanEndUtc">
+                  <DataGridTemplateColumn Header="Ends" Width="95" MinWidth="95" SortMemberPath="BanEndUtc">
                     <DataGridTemplateColumn.CellTemplate>
                       <DataTemplate>
                         <TextBlock Text="{Binding BanEndUtc, Converter={StaticResource Expiry}}" VerticalAlignment="Center"
@@ -113,7 +113,7 @@
                       </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                   </DataGridTemplateColumn>
-                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Reason" Binding="{Binding BanReason}" Width="*" MinWidth="160" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Reason" Binding="{Binding BanReason}" Width="*" MinWidth="120" />
                 </DataGrid.Columns>
               </DataGrid>
               <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding Banned.Count, Converter={StaticResource ZeroToVisibility}}">
@@ -159,12 +159,12 @@
                   <MouseBinding Gesture="LeftDoubleClick" Command="{Binding ShowDetailsCommand}" CommandParameter="{Binding SelectedItem, ElementName=WatchedGrid}" />
                 </DataGrid.InputBindings>
                 <DataGrid.Columns>
-                  <DataGridTemplateColumn Header="Address" Width="205" SortMemberPath="IPAddress" CellTemplate="{StaticResource AddressCell}" />
-                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Country" Binding="{Binding Country, Converter={StaticResource CountryName}}" Width="120" />
-                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="95" />
+                  <DataGridTemplateColumn Header="Address" Width="205" MinWidth="205" SortMemberPath="IPAddress" CellTemplate="{StaticResource AddressCell}" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Country" Binding="{Binding Country, Converter={StaticResource CountryName}}" Width="120" MinWidth="120" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="95" MinWidth="95" />
                   <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User names tried" Binding="{Binding UserNames}" Width="*" />
-                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Failed attempts" Binding="{Binding FailedCount}" Width="110" />
-                  <DataGridTemplateColumn Header="Last attempt" Width="120" SortMemberPath="LastFailedUtc">
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Failed attempts" Binding="{Binding FailedCount}" Width="110" MinWidth="110" />
+                  <DataGridTemplateColumn Header="Last attempt" Width="120" MinWidth="120" SortMemberPath="LastFailedUtc">
                     <DataGridTemplateColumn.CellTemplate>
                       <DataTemplate>
                         <TextBlock Text="{Binding LastFailedUtc, Converter={StaticResource RelativeTime}}" VerticalAlignment="Center"
