@@ -1,4 +1,6 @@
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
@@ -30,16 +32,87 @@ internal static class PipeSecurityFactory
 
     public static IpcClientInfo Identify(NamedPipeServerStream pipe)
     {
-        var info = new IpcClientInfo();
-        pipe.RunAsClient(() =>
+        // Clients connect with identification-level impersonation. While impersonating at that level, Windows
+        // refuses calls that need the LSA (e.g. resolving the account name), so only capture the client's token
+        // here and evaluate it after reverting to the service's own identity.
+        WindowsIdentity? identity = null;
+        try
         {
-            using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
-            info.UserName = identity.Name;
+            pipe.RunAsClient(() =>
+            {
+                var current = WindowsIdentity.GetCurrent(TokenAccessLevels.Query | TokenAccessLevels.Duplicate);
+                if (current.ImpersonationLevel == TokenImpersonationLevel.None)
+                {
+                    current.Dispose(); // not the client's token
+                }
+                else
+                {
+                    identity = current;
+                }
+            });
+        }
+        catch (Exception)
+        {
+            identity?.Dispose();
+            identity = null;
+        }
+
+        // Fallback: the token of the client process (the kernel reports its process id).
+        identity ??= FromClientProcess(pipe);
+        if (identity is null)
+        {
+            return new IpcClientInfo();
+        }
+
+        using (identity)
+        {
+            var info = new IpcClientInfo();
+            try
+            {
+                info.UserName = identity.Name;
+            }
+            catch (Exception)
+            {
+                info.UserName = identity.User?.Value;
+            }
 
             // A non-elevated administrator has a filtered token in which Administrators is deny-only,
-            // so IsInRole only returns true for elevated processes (UAC is respected).
-            info.IsAdministrator = identity.IsSystem || new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
-        });
-        return info;
+            // so this is only true for elevated processes (UAC is respected).
+            info.IsAdministrator = identity.IsSystem ||
+                                   new WindowsPrincipal(identity).IsInRole(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null));
+            return info;
+        }
     }
+
+    private static WindowsIdentity? FromClientProcess(NamedPipeServerStream pipe)
+    {
+        if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out uint processId))
+        {
+            return null;
+        }
+
+        using var process = OpenProcess(ProcessQueryLimitedInformation, false, processId);
+        if (process.IsInvalid || !OpenProcessToken(process, (uint)(TokenAccessLevels.Query | TokenAccessLevels.Duplicate), out var token))
+        {
+            return null;
+        }
+
+        using (token)
+        {
+            return new WindowsIdentity(token.DangerousGetHandle());
+        }
+    }
+
+    private const uint ProcessQueryLimitedInformation = 0x1000;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out uint clientProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern SafeProcessHandle OpenProcess(uint desiredAccess, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, uint processId);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool OpenProcessToken(SafeProcessHandle process, uint desiredAccess, out SafeAccessTokenHandle token);
 }

@@ -39,8 +39,8 @@ easy-to-use control panel and a tray icon that shows at a glance whether you are
 - **Tray icon** – green (protected), amber (paused), red (needs attention), grey (service not running), with
   notifications when addresses are banned and quick pause/resume.
 - **Import / export** settings and bans, run your own scripts on ban/unban/sign-in, CSV export.
-- **Secure by design** – the service runs as LocalSystem; the app talks to it over an ACL-protected named pipe and
-  can only change settings when it runs elevated (UAC is respected).
+- **Secure by design** – the service runs as LocalSystem; the app always runs as administrator and talks to it over
+  an ACL-protected named pipe that only accepts changes from elevated administrators.
 
 ## Screenshots
 
@@ -63,7 +63,8 @@ TheFirewall.exe --demo
 1. Download `TheFirewall-<version>-x64.msi` from the [releases](../../releases) or the latest
    [build artifacts](../../actions/workflows/build.yml).
 2. Run it. The installer adds the **TheFirewall** Windows service (starts automatically), a Start menu shortcut and the tray icon.
-3. Open TheFirewall from the Start menu or the shield in the notification area.
+3. Open TheFirewall from the Start menu or the shield in the notification area. The app always runs as administrator
+   (Windows asks for permission when you open it; the tray icon started at sign-in needs no prompt).
 
 Requirements: Windows 10 1809+ / Windows Server 2019+ (x64). Windows Defender Firewall must be on.
 
@@ -83,7 +84,9 @@ You can do the same from a script or an elevated prompt:
 .\TheFirewall.Service.exe register-tray   # optional: tray icon at sign-in for every user
 ```
 
-If the service ever crashes, Windows restarts it automatically.
+If the service ever crashes, Windows restarts it automatically. Double-clicking `TheFirewall.Service.exe` also installs
+or starts the Windows service (it no longer runs as an ordinary program; use `--console` for troubleshooting), and
+`TheFirewall.Service.exe check` shows whether the service is reachable and whether you may change settings.
 
 ## How it works
 

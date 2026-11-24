@@ -111,6 +111,24 @@ jobs:
             (Get-Service TheFirewall).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
             Invoke-EnsureService 'start'
 
+            Write-Host '2b. Through the service pipe an elevated administrator may change settings; a standard user is read-only.'
+            $adminOut = Join-Path $env:RUNNER_TEMP 'check-admin.txt'
+            $p = Start-Process $svc -ArgumentList 'check' -PassThru -Wait -NoNewWindow -RedirectStandardOutput $adminOut
+            Get-Content $adminOut | Write-Host
+            if ($p.ExitCode -ne 0) { throw "The administrator was not allowed to change settings (exit code $($p.ExitCode))." }
+
+            $copy = Join-Path $env:PUBLIC 'TheFirewallCheck'
+            Copy-Item $dir $copy -Recurse -Force
+            $password = 'Tf!' + [guid]::NewGuid().ToString('N').Substring(0, 16) + 'aA1'
+            $secure = ConvertTo-SecureString $password -AsPlainText -Force
+            New-LocalUser -Name 'tfcheck' -Password $secure -AccountNeverExpires | Out-Null
+            $cred = [PSCredential]::new("$env:COMPUTERNAME\tfcheck", $secure)
+            $userOut = Join-Path $env:PUBLIC 'check-user.txt'
+            $p = Start-Process (Join-Path $copy 'TheFirewall.Service.exe') -ArgumentList 'check' -Credential $cred -PassThru -Wait `
+                   -WorkingDirectory $copy -RedirectStandardOutput $userOut
+            Get-Content $userOut | Write-Host
+            if ($p.ExitCode -ne 4) { throw "A standard user should get read-only access (exit code $($p.ExitCode))." }
+
             Write-Host '3. Failed logins are detected and the attackers are banned.'
             Start-Sleep -Seconds 15   # let the log monitors finish their first scan
             $logDir = Join-Path $env:ProgramData 'TheFirewall\CustomLogs'

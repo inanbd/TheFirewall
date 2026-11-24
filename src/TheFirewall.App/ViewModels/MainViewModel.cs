@@ -76,6 +76,15 @@ public sealed partial class MainViewModel : ObservableObject
 
     public bool ShowElevationBanner => IsConnected && IsReadOnly && !IsDemo;
 
+    /// <summary>The app is elevated but the service still treats it as read-only (e.g. an older service version).</summary>
+    public bool ServiceRejectsAdmin => Elevation.IsElevated;
+
+    public string ElevationBannerText => ServiceRejectsAdmin
+        ? "The TheFirewall service did not recognise this app's administrator rights. Restart the service to fix this."
+        : "You can look around, but changing settings needs administrator permission.";
+
+    public string ElevationBannerButton => ServiceRejectsAdmin ? "Restart service" : "Restart as administrator";
+
     public string MachineName => Status?.MachineName ?? Environment.MachineName;
 
     partial void OnSelectedPageChanged(PageViewModel? value)
@@ -162,5 +171,19 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void RestartAsAdministrator() => Elevation.RestartElevated(showWindow: true);
+    private async Task RestartAsAdministratorAsync()
+    {
+        if (!ServiceRejectsAdmin)
+        {
+            Elevation.RestartElevated(showWindow: true);
+            return;
+        }
+
+        var stop = await WindowsServiceControl.RunElevatedAsync("stop");
+        var result = await ServiceBootstrapper.EnsureRunningAsync();
+        if (!result.IsRunning)
+        {
+            UiDialogs.Error("TheFirewall service", result.Message ?? stop ?? "The service could not be restarted.");
+        }
+    }
 }

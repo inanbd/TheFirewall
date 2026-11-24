@@ -1,6 +1,8 @@
 using System.Net.Http.Headers;
 using System.Runtime.Versioning;
+using System.Security.Principal;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.Extensions.Logging;
 using TheFirewall.Core;
 using TheFirewall.Core.Ipc;
@@ -15,11 +17,22 @@ internal sealed class FirewallWorker(ILoggerFactory loggerFactory, IHostApplicat
 {
     private readonly ILogger logger = loggerFactory.CreateLogger<FirewallWorker>();
 
+    // Held for the life of the process so a second copy cannot run against the same data and firewall rules.
+    private static Mutex? instanceMutex;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         FirewallCoordinator? coordinator = null;
         IpcServer? server = null;
         using var http = CreateHttpClient();
+        if (!AcquireInstance())
+        {
+            logger.LogCritical("Another TheFirewall service process is already running (perhaps TheFirewall.Service.exe was started by hand). Stop it and start the Windows service instead.");
+            Environment.ExitCode = 2;
+            lifetime.StopApplication();
+            return;
+        }
+
         try
         {
             var paths = FirewallPaths.Default;
@@ -29,6 +42,16 @@ internal sealed class FirewallWorker(ILoggerFactory loggerFactory, IHostApplicat
                 loggerFactory, http, ServiceConstants.Version);
 
             await coordinator.StartAsync(stoppingToken).ConfigureAwait(false);
+
+            using (var self = WindowsIdentity.GetCurrent())
+            {
+                if (!self.IsSystem)
+                {
+                    coordinator.AddStartupWarning(WindowsServiceHelpers.IsWindowsService()
+                        ? $"The TheFirewall service runs as {self.Name} instead of Local System, so it may be unable to read the Security log or change firewall rules."
+                        : "TheFirewall.Service.exe is running as an ordinary program instead of the Windows service. Close it and open TheFirewall.exe, which installs and starts the service.");
+                }
+            }
 
             if (coordinator.Settings.General.EnsureLogonFailureAuditing)
             {
@@ -71,6 +94,26 @@ internal sealed class FirewallWorker(ILoggerFactory loggerFactory, IHostApplicat
             {
                 await coordinator.DisposeAsync().ConfigureAwait(false);
             }
+        }
+    }
+
+    private static bool AcquireInstance()
+    {
+        try
+        {
+            instanceMutex = new Mutex(false, @"Global\TheFirewall.Service.Instance");
+            try
+            {
+                return instanceMutex.WaitOne(0);
+            }
+            catch (AbandonedMutexException)
+            {
+                return true; // the previous service process ended without releasing it
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false; // created by another (SYSTEM) instance
         }
     }
 

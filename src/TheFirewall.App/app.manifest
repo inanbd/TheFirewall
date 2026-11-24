@@ -4,8 +4,8 @@
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <!-- Runs as the signed-in user; changes ask for elevation only when needed. -->
-        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+        <!-- TheFirewall manages the firewall and a Windows service, so it always runs as administrator. -->
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>

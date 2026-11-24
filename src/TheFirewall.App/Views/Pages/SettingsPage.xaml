@@ -219,8 +219,8 @@
         <Border Style="{StaticResource SettingRow}">
           <Grid>
             <StackPanel Margin="0,0,80,0">
-              <TextBlock Text="Show the tray icon when anyone signs in" Style="{StaticResource RowTitle}" />
-              <TextBlock Text="Administrators get it with full rights and no UAC prompt; other users get a read-only view." Style="{StaticResource RowHint}" />
+              <TextBlock Text="Show the tray icon when an administrator signs in" Style="{StaticResource RowTitle}" />
+              <TextBlock Text="Starts with full rights and no UAC prompt. The protection service runs either way." Style="{StaticResource RowHint}" />
             </StackPanel>
             <CheckBox Style="{StaticResource ToggleSwitch}" HorizontalAlignment="Right" VerticalAlignment="Center" IsChecked="{Binding TrayAtSignIn}"
                       Command="{Binding ToggleTrayAtSignInCommand}" />

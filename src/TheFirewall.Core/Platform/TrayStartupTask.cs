@@ -7,8 +7,8 @@ using System.Xml.Linq;
 namespace TheFirewall.Core.Platform;
 
 /// <summary>
-/// A Task Scheduler task that starts the tray app whenever any user signs in. "Run with highest privileges"
-/// means administrators get an elevated tray app without a UAC prompt, while standard users get a read-only one.
+/// A Task Scheduler task that starts the tray app whenever an administrator signs in. "Run with highest privileges"
+/// starts it elevated without a UAC prompt (the app always requires administrator rights).
 /// </summary>
 [SupportedOSPlatform("windows")]
 public static class TrayStartupTask
@@ -22,7 +22,7 @@ public static class TrayStartupTask
             <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
               <RegistrationInfo>
                 <Author>TheFirewall</Author>
-                <Description>Shows the TheFirewall icon in the notification area when a user signs in.</Description>
+                <Description>Shows the TheFirewall icon in the notification area when an administrator signs in.</Description>
               </RegistrationInfo>
               <Triggers>
                 <LogonTrigger>
@@ -32,7 +32,7 @@ public static class TrayStartupTask
               </Triggers>
               <Principals>
                 <Principal id="Users">
-                  <GroupId>S-1-5-32-545</GroupId>
+                  <GroupId>S-1-5-32-544</GroupId>
                   <RunLevel>HighestAvailable</RunLevel>
                 </Principal>
               </Principals>

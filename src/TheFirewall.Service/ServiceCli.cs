@@ -15,7 +15,7 @@ namespace TheFirewall.Service;
 [SupportedOSPlatform("windows")]
 internal static class ServiceCli
 {
-    public static readonly string[] Verbs = ["install", "uninstall", "start", "stop", "status", "configure", "remove-rules", "register-tray", "unregister-tray", "cleanup", "help", "--help", "-h", "/?"];
+    public static readonly string[] Verbs = ["install", "uninstall", "start", "stop", "status", "check", "configure", "remove-rules", "register-tray", "unregister-tray", "cleanup", "help", "--help", "-h", "/?"];
 
     /// <summary>
     /// Service permissions: the Windows defaults plus "start" for interactive users, so the app can start a stopped
@@ -33,7 +33,7 @@ internal static class ServiceCli
             return 0;
         }
 
-        if (verb != "status" && !IsElevated())
+        if (verb is not ("status" or "check") && !IsElevated())
         {
             Console.Error.WriteLine("This command must be run as administrator.");
             return 5;
@@ -49,6 +49,7 @@ internal static class ServiceCli
                 "configure" => Configure(),
                 "stop" => Stop(),
                 "status" => Status(),
+                "check" => Check(),
                 "remove-rules" => RemoveRules(),
                 "register-tray" => RegisterTray(args.Length > 1 ? args[1] : Path.Combine(AppContext.BaseDirectory, "TheFirewall.exe")),
                 "unregister-tray" => UnregisterTray(),
@@ -70,18 +71,148 @@ internal static class ServiceCli
 
             Usage: TheFirewall.Service.exe [command]
 
-              (no command)       Run as a Windows service, or in the console when started interactively.
+              (no command)       Run as the Windows service. Started by hand, it installs or starts the service.
+              --console          Run in the foreground for troubleshooting (as administrator).
               install            Install (or repair) and start the Windows service.
               configure          Re-apply automatic start, restart-on-failure and start permissions.
               uninstall          Stop and remove the service and delete TheFirewall's firewall rules.
                                  Add --keep-rules to leave the firewall rules in place.
               start | stop       Start or stop the service.
               status             Show whether the service is installed and running.
+              check              Connect to the running service and show whether you may change settings.
               remove-rules       Delete every firewall rule created by TheFirewall.
               register-tray      Start the tray app for every user at sign-in (Task Scheduler).
               unregister-tray    Remove the sign-in task.
               cleanup            remove-rules + unregister-tray (used by the uninstaller).
             """);
+    }
+
+    /// <summary>Double-clicked: make sure the Windows service is installed and running, elevating if needed.</summary>
+    public static int RunInteractive()
+    {
+        Console.WriteLine($"TheFirewall {ServiceConstants.Version}");
+        Console.WriteLine("TheFirewall protects this computer from a background Windows service.");
+        Console.WriteLine();
+        int result;
+        try
+        {
+            var installed = ServiceExists();
+            var path = installed ? GetInstalledServicePath() : null;
+            if (!installed || path is null || !File.Exists(path))
+            {
+                Console.WriteLine("Installing the service…");
+                result = IsElevated() ? Install() : RunElevated("install");
+            }
+            else
+            {
+                using var controller = new ServiceController(ServiceConstants.ServiceName);
+                if (controller.Status == ServiceControllerStatus.Running)
+                {
+                    Console.WriteLine("The service is already running.");
+                    result = 0;
+                }
+                else
+                {
+                    Console.WriteLine("Starting the service…");
+                    try
+                    {
+                        result = Start();
+                    }
+                    catch (Exception) when (!IsElevated())
+                    {
+                        result = RunElevated("start");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            result = 1;
+        }
+
+        Console.WriteLine();
+        Console.WriteLine(result == 0
+            ? "Done. Open TheFirewall.exe to see what it is doing."
+            : "The service could not be installed or started. Open TheFirewall.exe, or run 'TheFirewall.Service.exe install' as administrator.");
+        WaitBeforeClosing();
+        return result;
+    }
+
+    private static int RunElevated(string verb)
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo(Environment.ProcessPath ?? "TheFirewall.Service.exe", verb)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+            });
+            if (process is null)
+            {
+                return 1;
+            }
+
+            process.WaitForExit();
+            return process.ExitCode;
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            Console.Error.WriteLine("The administrator prompt was cancelled.");
+            return 1223;
+        }
+    }
+
+    private static void WaitBeforeClosing()
+    {
+        if (Console.IsInputRedirected || Console.IsOutputRedirected || !Environment.UserInteractive)
+        {
+            return;
+        }
+
+        Console.WriteLine("Press any key to close (closes automatically in 20 seconds).");
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (Console.KeyAvailable)
+            {
+                Console.ReadKey(intercept: true);
+                return;
+            }
+
+            Thread.Sleep(100);
+        }
+    }
+
+    /// <summary>Connects to the running service like the app does. Exit code 0: may change settings, 4: read-only, 5: not reachable.</summary>
+    private static int Check()
+    {
+        try
+        {
+            return CheckAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Unable to reach the TheFirewall service: " + ex.Message);
+            return 5;
+        }
+    }
+
+    private static async Task<int> CheckAsync()
+    {
+        await using var client = new Core.Ipc.IpcClient();
+        await client.ConnectAsync(TimeSpan.FromSeconds(10));
+        var hello = await client.RequestAsync<Core.Ipc.HelloResponse>(Core.Ipc.IpcCommands.Hello)
+                    ?? throw new InvalidOperationException("The service did not answer.");
+        var status = await client.RequestAsync<Core.Ipc.ServiceStatusDto>(Core.Ipc.IpcCommands.Status);
+        Console.WriteLine($"Connected to TheFirewall service {hello.ServiceVersion} on {hello.MachineName} as {hello.UserName}.");
+        Console.WriteLine(hello.IsAdministrator ? "This user may change settings (administrator)." : "This user has read-only access.");
+        foreach (var warning in status?.Warnings ?? [])
+        {
+            Console.WriteLine("Warning: " + warning);
+        }
+
+        return hello.IsAdministrator ? 0 : 4;
     }
 
     private static int Install()

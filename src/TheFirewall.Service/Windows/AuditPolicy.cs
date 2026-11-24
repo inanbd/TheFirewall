@@ -36,6 +36,13 @@ internal static class AuditPolicy
                 return "auditpol.exe did not respond.";
             }
 
+            if (process.ExitCode == 1314)
+            {
+                logger.LogWarning("auditpol failed: privilege not held ({Output})", output.Trim());
+                return "Failed-logon auditing could not be enabled because the service lacks system privileges (error 1314). " +
+                       "Make sure TheFirewall runs as the Windows service (open TheFirewall.exe), or enable 'Audit Logon: Failure' in the local security policy.";
+            }
+
             if (process.ExitCode != 0)
             {
                 logger.LogWarning("auditpol failed with exit code {Code}: {Output}", process.ExitCode, output.Trim());

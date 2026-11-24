@@ -84,7 +84,7 @@
                 ToolTip="TheFirewall is running without administrator rights, so settings are read-only.">
           <StackPanel Orientation="Horizontal" Margin="2,2">
             <TextBlock Text="&#xE7EF;" Style="{StaticResource Glyph}" Width="20" Foreground="{DynamicResource SystemFillColorCautionBrush}" />
-            <TextBlock Text="Unlock changes (admin)" Margin="14,0,0,0" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding ElevationBannerButton}" Margin="14,0,0,0" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
         <ListBox Style="{StaticResource NavList}" ItemsSource="{Binding FooterPages}" SelectedItem="{Binding SelectedFooterPage}"
@@ -118,8 +118,8 @@
               </Grid.ColumnDefinitions>
               <TextBlock Text="&#xE72E;" Style="{StaticResource Glyph}" Foreground="{DynamicResource SystemFillColorCautionBrush}" />
               <TextBlock Grid.Column="1" Margin="10,0" Style="{StaticResource Body}" VerticalAlignment="Center"
-                         Text="You can look around, but changing settings needs administrator permission." />
-              <Button Grid.Column="2" Content="Restart as administrator" Command="{Binding RestartAsAdministratorCommand}" />
+                         Text="{Binding ElevationBannerText}" />
+              <Button Grid.Column="2" Content="{Binding ElevationBannerButton}" Command="{Binding RestartAsAdministratorCommand}" />
             </Grid>
           </Border>
         </StackPanel>
