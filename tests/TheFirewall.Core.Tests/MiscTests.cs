@@ -173,3 +173,19 @@ public class MiscUnitTests
         Assert.Equal(RuleProfiles.Domain | RuleProfiles.Private, back.Profiles);
     }
 }
+
+public class CountryValidationTests
+{
+    [Fact]
+    public void Allow_only_without_countries_is_rejected()
+    {
+        var settings = new FirewallSettings();
+        settings.CountryBlocking.Mode = CountryBlockingMode.AllowOnlySelected;
+        Assert.Contains(SettingsStore.Validate(settings), e => e.Contains("at least one country", StringComparison.Ordinal));
+
+        settings.CountryBlocking.Countries = ["DE", "XX"];
+        var errors = SettingsStore.Validate(settings);
+        Assert.DoesNotContain(errors, e => e.Contains("at least one country", StringComparison.Ordinal));
+        Assert.Contains(errors, e => e.Contains("'XX'", StringComparison.Ordinal));
+    }
+}

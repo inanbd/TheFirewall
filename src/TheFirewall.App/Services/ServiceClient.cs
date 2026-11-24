@@ -72,7 +72,15 @@ public sealed class ServiceClient(Dispatcher dispatcher) : IFirewallClient
                 await candidate.RequestAsync(IpcCommands.Subscribe, cancellationToken: token).ConfigureAwait(false);
                 var hello = await candidate.RequestAsync<HelloResponse>(IpcCommands.Hello, cancellationToken: token).ConfigureAwait(false);
                 var status = await candidate.RequestAsync<ServiceStatusDto>(IpcCommands.Status, cancellationToken: token).ConfigureAwait(false);
+                var previous = client;
                 client = candidate;
+                if (previous is not null)
+                {
+                    previous.Disconnected -= OnDisconnected;
+                    previous.EventReceived -= OnEvent;
+                    _ = previous.DisposeAsync().AsTask();
+                }
+
                 CanMakeChanges = hello?.IsAdministrator == true;
                 ServiceVersion = hello?.ServiceVersion;
                 LastStatus = status;

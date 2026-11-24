@@ -1,0 +1,73 @@
+name: Build
+
+on:
+  push:
+    branches: [ main, master, 'claude/**' ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Version
+        id: version
+        shell: pwsh
+        run: |
+          $version = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}".TrimStart('v') } else { "1.0.${{ github.run_number }}" }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build
+        run: dotnet build TheFirewall.slnx -c Release
+
+      - name: Test
+        run: dotnet test tests/TheFirewall.Core.Tests -c Release --no-build --logger "trx;LogFileName=results.trx"
+
+      - name: Publish and build installer
+        shell: pwsh
+        run: ./build/publish.ps1 -Version ${{ steps.version.outputs.value }}
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: TheFirewall-${{ steps.version.outputs.value }}-x64-msi
+          path: artifacts/installer/*.msi
+
+      - name: Upload portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: TheFirewall-${{ steps.version.outputs.value }}-x64-portable
+          path: artifacts/publish/win-x64
+
+      - name: UI smoke test (renders every page with demo data)
+        shell: pwsh
+        run: |
+          $out = Join-Path $pwd "artifacts/screenshots"
+          $p = Start-Process -FilePath artifacts/publish/win-x64/TheFirewall.exe -ArgumentList @('--screenshots', "`"$out`"") -PassThru
+          if (-not $p.WaitForExit(180000)) { $p.Kill(); throw "The app did not finish rendering within 3 minutes." }
+          $log = Join-Path $env:LOCALAPPDATA "TheFirewall/app-errors.log"
+          if (Test-Path $log) { Get-Content $log }
+          Get-ChildItem $out | Format-Table Name, Length
+          if ($p.ExitCode -ne 0) { throw "UI smoke test failed with exit code $($p.ExitCode)" }
+          if ((Get-ChildItem $out -Filter *.png).Count -lt 10) { throw "Expected at least 10 screenshots." }
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: artifacts/screenshots
+          if-no-files-found: ignore

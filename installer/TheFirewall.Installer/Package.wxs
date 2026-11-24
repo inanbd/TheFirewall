@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  TheFirewall installer (WiX Toolset 5).
+  Installs the app and the Windows service into Program Files, registers the service (LocalSystem, automatic start,
+  restart on failure), adds a Start menu shortcut and a sign-in task that shows the tray icon for every user.
+  Uninstalling removes the service, the sign-in task and every firewall rule TheFirewall created.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <Package Name="TheFirewall"
+           Manufacturer="TheFirewall contributors"
+           Version="$(var.ProductVersion)"
+           UpgradeCode="{1A46EC56-1640-4C68-AD19-6BC5047FA692}"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <SummaryInformation Description="TheFirewall - brute-force protection for Windows" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of TheFirewall is already installed." AllowSameVersionUpgrades="yes" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="AppIcon" SourceFile="..\..\src\TheFirewall.App\Assets\TheFirewall.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/inanbd/TheFirewall" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/inanbd/TheFirewall" />
+    <Property Id="ARPCOMMENTS" Value="Bans IP addresses after repeated failed logins using Windows Defender Firewall." />
+
+    <!-- Wizard: welcome, license (MIT), install folder, progress, finish (with "Open TheFirewall") -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="Resources\License.rtf" />
+    <WixVariable Id="WixUIBannerBmp" Value="Resources\Banner.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="Resources\Dialog.bmp" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Open TheFirewall" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#AppExe]" />
+    <CustomAction Id="LaunchApplication" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixShellExec" Impersonate="yes" />
+    <UI>
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApplication"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+    </UI>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="TheFirewall" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="TheFirewall" Level="1" AllowAbsent="no">
+      <ComponentGroupRef Id="RuntimeFiles" />
+      <ComponentRef Id="ServiceComponent" />
+      <ComponentRef Id="AppComponent" />
+    </Feature>
+
+    <!-- Show the tray icon at sign-in for every user (elevated for administrators, read-only for others). -->
+    <CustomAction Id="RegisterTray" FileRef="ServiceExe" ExeCommand="register-tray &quot;[INSTALLFOLDER]TheFirewall.exe&quot;"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <!-- On a real uninstall (not an upgrade): delete firewall rules created by TheFirewall and the sign-in task. -->
+    <CustomAction Id="Cleanup" FileRef="ServiceExe" ExeCommand="cleanup"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="RegisterTray" Before="InstallFinalize" Condition="NOT REMOVE" />
+      <Custom Action="Cleanup" Before="RemoveFiles" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+  </Package>
+
+  <Fragment>
+    <!-- Everything from the publish folder except the two executables declared below. -->
+    <ComponentGroup Id="RuntimeFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)**">
+        <Exclude Files="$(var.PublishDir)TheFirewall.exe" />
+        <Exclude Files="$(var.PublishDir)TheFirewall.Service.exe" />
+        <Exclude Files="$(var.PublishDir)**\*.pdb" />
+      </Files>
+    </ComponentGroup>
+
+    <Component Id="ServiceComponent" Directory="INSTALLFOLDER">
+      <File Id="ServiceExe" Source="$(var.PublishDir)TheFirewall.Service.exe" KeyPath="yes" />
+      <ServiceInstall Id="TheFirewallService"
+                      Name="TheFirewall"
+                      DisplayName="TheFirewall"
+                      Description="Watches Windows logs for failed logins (RDP, SSH, SQL Server, mail, FTP...) and blocks attacking IP addresses with Windows Defender Firewall."
+                      Type="ownProcess"
+                      Start="auto"
+                      Account="LocalSystem"
+                      ErrorControl="normal"
+                      Vital="yes">
+        <util:ServiceConfig FirstFailureActionType="restart"
+                            SecondFailureActionType="restart"
+                            ThirdFailureActionType="restart"
+                            RestartServiceDelayInSeconds="10"
+                            ResetPeriodInDays="1" />
+      </ServiceInstall>
+      <ServiceControl Id="TheFirewallServiceControl" Name="TheFirewall" Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+    </Component>
+
+    <Component Id="AppComponent" Directory="INSTALLFOLDER">
+      <File Id="AppExe" Source="$(var.PublishDir)TheFirewall.exe" KeyPath="yes">
+        <Shortcut Id="StartMenuShortcut"
+                  Directory="ProgramMenuFolder"
+                  Name="TheFirewall"
+                  Description="TheFirewall - brute-force protection"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon"
+                  Advertise="yes" />
+      </File>
+    </Component>
+  </Fragment>
+</Wix>

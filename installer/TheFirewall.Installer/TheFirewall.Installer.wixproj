@@ -1,0 +1,23 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <!--
+    Builds TheFirewall-<version>-x64.msi. Publish the app and service first (see build/publish.ps1), then:
+      dotnet build installer/TheFirewall.Installer -c Release -p:ProductVersion=1.0.0
+    WiX only builds on Windows.
+  -->
+  <PropertyGroup>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">1.0.0</ProductVersion>
+    <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'AnyCPU'">x64</Platform>
+    <InstallerPlatform>$(Platform)</InstallerPlatform>
+    <PublishRuntime Condition="'$(Platform)' == 'ARM64'">win-arm64</PublishRuntime>
+    <PublishRuntime Condition="'$(PublishRuntime)' == ''">win-x64</PublishRuntime>
+    <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\publish\$(PublishRuntime)\</PublishDir>
+    <OutputName>TheFirewall-$(ProductVersion)-$(Platform)</OutputName>
+    <DefineConstants>ProductVersion=$(ProductVersion);PublishDir=$(PublishDir)</DefineConstants>
+    <SuppressIces>ICE61</SuppressIces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" />
+    <PackageReference Include="WixToolset.UI.wixext" />
+  </ItemGroup>
+</Project>

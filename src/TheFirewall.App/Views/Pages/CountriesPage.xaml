@@ -82,7 +82,10 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate DataType="{x:Type vm:CountryItem}">
-              <CheckBox IsChecked="{Binding IsSelected}" Margin="4,5" ToolTip="{Binding RangeCount, StringFormat={}{0:N0} address ranges}">
+              <CheckBox IsChecked="{Binding IsSelected}" Margin="4,5">
+                <CheckBox.ToolTip>
+                  <TextBlock Text="{Binding RangeCount, StringFormat={}{0:N0} address ranges}" />
+                </CheckBox.ToolTip>
                 <StackPanel Orientation="Horizontal">
                   <Border Style="{StaticResource CountryBadge}">
                     <TextBlock Text="{Binding Code}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"

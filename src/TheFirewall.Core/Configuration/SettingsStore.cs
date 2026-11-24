@@ -280,6 +280,16 @@ public sealed class SettingsStore(string path, ILogger logger)
             }
         }
 
+        if (s.CountryBlocking.Mode == CountryBlockingMode.AllowOnlySelected && s.CountryBlocking.Countries.Count == 0)
+        {
+            errors.Add("Country blocking: select at least one country to allow, otherwise every address outside your network would be blocked.");
+        }
+
+        foreach (var code in s.CountryBlocking.Countries.Where(c => !Geo.Countries.IsValidCode(c)))
+        {
+            errors.Add($"Country blocking: '{code}' is not a known country code.");
+        }
+
         if (!FirewallPlanner.TryNormalizePorts(s.CountryBlocking.Ports, out _, out var countryPortError))
         {
             errors.Add($"Country blocking: {countryPortError}");

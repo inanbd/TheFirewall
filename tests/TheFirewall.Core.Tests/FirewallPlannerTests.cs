@@ -52,7 +52,7 @@ public class FirewallPlannerTests
     {
         var settings = new FirewallSettings();
         settings.CountryBlocking.Mode = CountryBlockingMode.AllowOnlySelected;
-        settings.CountryBlocking.Countries = ["XX"];
+        settings.CountryBlocking.Countries = ["DE"];
         settings.CountryBlocking.Ports = "3389, 22";
         var allowed = new List<IPAddressRange> { IPAddressRange.Parse("1.0.0.0/8") };
 

@@ -15,7 +15,7 @@ namespace TheFirewall.Service;
 [SupportedOSPlatform("windows")]
 internal static class ServiceCli
 {
-    public static readonly string[] Verbs = ["install", "uninstall", "start", "stop", "status", "remove-rules", "register-tray", "unregister-tray", "help", "--help", "-h", "/?"];
+    public static readonly string[] Verbs = ["install", "uninstall", "start", "stop", "status", "remove-rules", "register-tray", "unregister-tray", "cleanup", "help", "--help", "-h", "/?"];
 
     public static int Run(string[] args)
     {
@@ -44,6 +44,7 @@ internal static class ServiceCli
                 "remove-rules" => RemoveRules(),
                 "register-tray" => RegisterTray(args.Length > 1 ? args[1] : Path.Combine(AppContext.BaseDirectory, "TheFirewall.exe")),
                 "unregister-tray" => UnregisterTray(),
+                "cleanup" => Cleanup(),
                 _ => 1,
             };
         }
@@ -70,6 +71,7 @@ internal static class ServiceCli
               remove-rules       Delete every firewall rule created by TheFirewall.
               register-tray      Start the tray app for every user at sign-in (Task Scheduler).
               unregister-tray    Remove the sign-in task.
+              cleanup            remove-rules + unregister-tray (used by the uninstaller).
             """);
     }
 
@@ -188,6 +190,21 @@ internal static class ServiceCli
     {
         TrayStartupTask.Unregister(out var output);
         Console.WriteLine(output);
+        return 0;
+    }
+
+    private static int Cleanup()
+    {
+        try
+        {
+            RemoveRules();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Removing firewall rules failed: " + ex.Message);
+        }
+
+        UnregisterTray();
         return 0;
     }
 
