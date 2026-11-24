@@ -1,0 +1,68 @@
+<Window x:Class="TheFirewall.App.Views.Dialogs.AddressDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Address details" Width="720" Height="640" MinWidth="560" MinHeight="420"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <Grid Margin="24,20,24,16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel Orientation="Horizontal">
+      <Border Style="{StaticResource CountryBadge}" Height="24" MinWidth="34">
+        <TextBlock x:Name="CountryCode" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+      </Border>
+      <TextBlock x:Name="AddressText" FontSize="24" FontWeight="SemiBold" FontFamily="Cascadia Mono, Consolas" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+    </StackPanel>
+    <TextBlock x:Name="CountryText" Grid.Row="1" Style="{StaticResource Caption}" Margin="0,4,0,0" />
+
+    <Border x:Name="StatusBar" Grid.Row="2" Style="{StaticResource InfoBar}" Margin="0,16,0,12">
+      <StackPanel>
+        <TextBlock x:Name="StatusTitle" Style="{StaticResource Body}" FontWeight="SemiBold" />
+        <TextBlock x:Name="StatusDetail" Style="{StaticResource Caption}" Margin="0,4,0,0" />
+      </StackPanel>
+    </Border>
+
+    <Border Grid.Row="3" Style="{StaticResource Card}" Padding="4" Margin="0">
+      <DataGrid x:Name="ActivityGrid" Style="{StaticResource ListGrid}">
+        <DataGrid.Columns>
+          <DataGridTemplateColumn Header="Time" Width="140">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding TimeUtc, Converter={StaticResource LocalTime}, ConverterParameter=g}" VerticalAlignment="Center" />
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTemplateColumn Header="Event" Width="130">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Type, Converter={StaticResource ActivityGlyph}}" Style="{StaticResource Glyph}" FontSize="13"
+                             Foreground="{Binding Type, Converter={StaticResource ActivityBrush}}" />
+                  <TextBlock Text="{Binding Type, Converter={StaticResource ActivityText}}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
+          <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="90" />
+          <DataGridTextColumn Header="User" Binding="{Binding UserName}" Width="110" />
+          <DataGridTextColumn Header="Details" Binding="{Binding Message}" Width="*" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </Border>
+
+    <Grid Grid.Row="4" Margin="0,16,0,0">
+      <StackPanel Orientation="Horizontal">
+        <Button x:Name="BanButton" Content="Ban" Click="OnBan" MinWidth="90" />
+        <Button x:Name="UnbanButton" Content="Unban" Click="OnUnban" MinWidth="90" Margin="8,0,0,0" />
+        <Button x:Name="WhitelistButton" Content="Never ban" Click="OnWhitelist" Margin="8,0,0,0" />
+        <Button Content="Copy" Click="OnCopy" Margin="8,0,0,0" />
+      </StackPanel>
+      <Button Content="Close" IsCancel="True" HorizontalAlignment="Right" MinWidth="90" Click="OnClose" />
+    </Grid>
+  </Grid>
+</Window>

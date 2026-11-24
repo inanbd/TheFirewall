@@ -1,0 +1,123 @@
+<UserControl x:Class="TheFirewall.App.Views.Pages.ActivityPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:TheFirewall.App.ViewModels"
+             mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:ActivityViewModel}">
+  <Grid Margin="32,16,32,16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <StackPanel>
+      <TextBlock Text="Live activity" Style="{StaticResource PageTitle}" />
+      <TextBlock Text="Every failed and successful sign-in TheFirewall detects, and every ban, as it happens. Double-click a row for details."
+                 Style="{StaticResource PageSubtitle}" />
+    </StackPanel>
+
+    <!-- Toolbar -->
+    <Grid Grid.Row="1" Margin="0,16,0,12">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="300" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <Grid>
+        <TextBox x:Name="SearchBox" Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=400}" VerticalContentAlignment="Center">
+          <TextBox.InputBindings>
+            <KeyBinding Key="Enter" Command="{Binding ApplySearchCommand}" />
+          </TextBox.InputBindings>
+        </TextBox>
+        <TextBlock Text="Search address, user, source…" IsHitTestVisible="False" Margin="12,0" VerticalAlignment="Center"
+                   Style="{StaticResource Caption}" Visibility="{Binding Text, ElementName=SearchBox, Converter={StaticResource EmptyToVisible}}" />
+      </Grid>
+      <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="190" ItemsSource="{Binding Filters}" DisplayMemberPath="Value" SelectedValuePath="Key"
+                SelectedValue="{Binding Filter}" AutomationProperties.Name="Filter" />
+      <StackPanel Grid.Column="3" Orientation="Horizontal">
+        <Border Style="{StaticResource Pill}" Margin="0,0,12,0" Visibility="{Binding NewWhilePaused, Converter={StaticResource CountToVisibility}}">
+          <TextBlock Style="{StaticResource Caption}">
+            <Run Text="{Binding NewWhilePaused, Mode=OneWay}" /><Run Text=" new" />
+          </TextBlock>
+        </Border>
+        <CheckBox Style="{StaticResource ToggleSwitch}" Content="Live updates" IsChecked="{Binding IsLive}" VerticalAlignment="Center" Margin="0,0,16,0" />
+        <Button Command="{Binding ExportCommand}" ToolTip="Export the visible rows as CSV">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Text="&#xE898;" Style="{StaticResource Glyph}" FontSize="14" />
+            <TextBlock Text="Export" Margin="8,0,0,0" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <!-- List -->
+    <Border Grid.Row="2" Style="{StaticResource Card}" Padding="4" Margin="0">
+      <Grid>
+        <DataGrid x:Name="Grid" Style="{StaticResource ListGrid}" ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}" SelectionMode="Single">
+          <DataGrid.InputBindings>
+            <MouseBinding Gesture="LeftDoubleClick" Command="{Binding ShowDetailsCommand}" CommandParameter="{Binding SelectedItem, ElementName=Grid}" />
+          </DataGrid.InputBindings>
+          <DataGrid.ContextMenu>
+            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+              <MenuItem Header="Show details" Command="{Binding ShowDetailsCommand}" />
+              <MenuItem Header="Copy address" Command="{Binding CopyAddressCommand}" />
+              <Separator />
+              <MenuItem Header="Ban this address" Command="{Binding BanCommand}" />
+              <MenuItem Header="Never ban this address (whitelist)" Command="{Binding WhitelistCommand}" />
+            </ContextMenu>
+          </DataGrid.ContextMenu>
+          <DataGrid.Columns>
+            <DataGridTemplateColumn Header="Time" Width="110" SortMemberPath="TimeUtc">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <TextBlock Text="{Binding TimeUtc, Converter={StaticResource RelativeTime}}" VerticalAlignment="Center"
+                             ToolTip="{Binding TimeUtc, Converter={StaticResource LocalTime}}" Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="Event" Width="140" SortMemberPath="Type">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Type, Converter={StaticResource ActivityGlyph}}" Style="{StaticResource Glyph}" FontSize="13"
+                               Foreground="{Binding Type, Converter={StaticResource ActivityBrush}}" />
+                    <TextBlock Text="{Binding Type, Converter={StaticResource ActivityText}}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTemplateColumn Header="Address" Width="200" SortMemberPath="IPAddress">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Country, Converter={StaticResource CountryName}}">
+                    <Border Style="{StaticResource CountryBadge}" Visibility="{Binding Country, Converter={StaticResource NullToVisibility}}">
+                      <TextBlock Text="{Binding Country}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </Border>
+                    <TextBlock Text="{Binding IPAddress}" Style="{StaticResource Mono}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+            </DataGridTemplateColumn>
+            <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="100" />
+            <DataGridTextColumn Header="User name" Binding="{Binding UserName}" Width="140" />
+            <DataGridTextColumn Header="Details" Binding="{Binding Message}" Width="*" />
+          </DataGrid.Columns>
+        </DataGrid>
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding Items.Count, Converter={StaticResource ZeroToVisibility}}">
+          <TextBlock Text="&#xE81C;" Style="{StaticResource Glyph}" FontSize="36" HorizontalAlignment="Center" Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
+          <TextBlock Text="Nothing here yet" Style="{StaticResource SectionTitle}" HorizontalAlignment="Center" Margin="0,12,0,4" />
+          <TextBlock Text="{Binding LoadError, TargetNullValue='Activity appears here as soon as TheFirewall sees a sign-in attempt.'}"
+                     Style="{StaticResource Caption}" HorizontalAlignment="Center" TextAlignment="Center" MaxWidth="420" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Button Grid.Row="3" Content="Load older activity" Command="{Binding LoadMoreCommand}" HorizontalAlignment="Center" Margin="0,12,0,0"
+            Visibility="{Binding Items.Count, Converter={StaticResource CountToVisibility}}" />
+  </Grid>
+</UserControl>

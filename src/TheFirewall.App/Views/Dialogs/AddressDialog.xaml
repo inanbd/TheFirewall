@@ -1,0 +1,25 @@
+<Window x:Class="TheFirewall.App.Views.Dialogs.AddressDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add addresses" Width="520" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+  <StackPanel Margin="24">
+    <TextBlock x:Name="TitleText" Style="{StaticResource SectionTitle}" FontSize="20" />
+    <TextBlock x:Name="DescriptionText" Style="{StaticResource Caption}" Margin="0,4,0,8" />
+
+    <TextBlock Text="Addresses (one per line)" Style="{StaticResource FieldLabel}" />
+    <TextBox x:Name="AddressesBox" AcceptsReturn="True" Height="120" VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"
+             FontFamily="Cascadia Mono, Consolas" TextChanged="OnChanged" />
+    <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0"
+               Text="Examples: 203.0.113.7   ·   203.0.113.0/24   ·   10.0.0.1-10.0.0.50   ·   192.168.1.*   ·   2001:db8::/32" />
+    <TextBlock x:Name="ErrorText" Style="{StaticResource Caption}" Foreground="{DynamicResource SystemFillColorCriticalBrush}" Visibility="Collapsed" Margin="0,6,0,0" />
+
+    <TextBlock Text="Comment (optional)" Style="{StaticResource FieldLabel}" />
+    <TextBox x:Name="CommentBox" />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
+      <Button x:Name="OkButton" Content="Add" IsDefault="False" Style="{DynamicResource AccentButtonStyle}" MinWidth="100" Click="OnOk" IsEnabled="False" />
+      <Button Content="Cancel" IsCancel="True" MinWidth="100" Margin="8,0,0,0" />
+    </StackPanel>
+  </StackPanel>
+</Window>
