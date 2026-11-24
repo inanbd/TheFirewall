@@ -117,6 +117,15 @@ internal sealed class WindowsEventLogMonitor : ILoginMonitor
 
     private void Start(LogSubscription subscription)
     {
+        // Subscriptions to a log that does not exist can succeed silently, so check explicitly
+        // (otherwise monitors for software that is not installed would look active).
+        if (!LogExists(subscription.LogName))
+        {
+            subscription.Missing = true;
+            subscription.Error = null;
+            return;
+        }
+
         try
         {
             var query = new EventLogQuery(subscription.LogName, PathType.LogName, subscription.Query);
@@ -137,6 +146,20 @@ internal sealed class WindowsEventLogMonitor : ILoginMonitor
         {
             subscription.Error = ex.Message;
             logger.LogWarning(ex, "Unable to watch event log {Log}", subscription.LogName);
+        }
+    }
+
+    private bool LogExists(string logName)
+    {
+        try
+        {
+            using var session = new EventLogSession();
+            return session.GetLogNames().Any(n => string.Equals(n, logName, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Unable to list event logs; assuming {Log} exists", logName);
+            return true;
         }
     }
 
