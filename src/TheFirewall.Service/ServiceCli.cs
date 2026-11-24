@@ -15,7 +15,14 @@ namespace TheFirewall.Service;
 [SupportedOSPlatform("windows")]
 internal static class ServiceCli
 {
-    public static readonly string[] Verbs = ["install", "uninstall", "start", "stop", "status", "remove-rules", "register-tray", "unregister-tray", "cleanup", "help", "--help", "-h", "/?"];
+    public static readonly string[] Verbs = ["install", "uninstall", "start", "stop", "status", "configure", "remove-rules", "register-tray", "unregister-tray", "cleanup", "help", "--help", "-h", "/?"];
+
+    /// <summary>
+    /// Service permissions: the Windows defaults plus "start" for interactive users, so the app can start a stopped
+    /// service without a UAC prompt. Stopping or changing the service still requires an administrator.
+    /// </summary>
+    private const string ServiceSddl =
+        "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWRPLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)";
 
     public static int Run(string[] args)
     {
@@ -39,6 +46,7 @@ internal static class ServiceCli
                 "install" => Install(),
                 "uninstall" => Uninstall(keepRules: args.Contains("--keep-rules", StringComparer.OrdinalIgnoreCase)),
                 "start" => Start(),
+                "configure" => Configure(),
                 "stop" => Stop(),
                 "status" => Status(),
                 "remove-rules" => RemoveRules(),
@@ -63,7 +71,8 @@ internal static class ServiceCli
             Usage: TheFirewall.Service.exe [command]
 
               (no command)       Run as a Windows service, or in the console when started interactively.
-              install            Install and start the Windows service.
+              install            Install (or repair) and start the Windows service.
+              configure          Re-apply automatic start, restart-on-failure and start permissions.
               uninstall          Stop and remove the service and delete TheFirewall's firewall rules.
                                  Add --keep-rules to leave the firewall rules in place.
               start | stop       Start or stop the service.
@@ -78,19 +87,61 @@ internal static class ServiceCli
     private static int Install()
     {
         var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "TheFirewall.Service.exe");
-        if (ServiceExists())
+        if (!ServiceExists())
         {
-            Console.WriteLine("The service is already installed.");
+            Sc($"create {ServiceConstants.ServiceName} binPath= \"\\\"{exe}\\\"\" start= auto DisplayName= \"{ServiceConstants.DisplayName}\"");
+            Console.WriteLine("Service installed.");
         }
         else
         {
-            Sc($"create {ServiceConstants.ServiceName} binPath= \"\\\"{exe}\\\"\" start= auto DisplayName= \"{ServiceConstants.DisplayName}\"");
-            Sc($"description {ServiceConstants.ServiceName} \"{ServiceConstants.Description}\"");
-            Sc($"failure {ServiceConstants.ServiceName} reset= 86400 actions= restart/5000/restart/15000/restart/60000");
-            Console.WriteLine("Service installed.");
+            // A portable copy may have been moved or deleted: point the service at this copy if its exe is gone.
+            var current = GetInstalledServicePath();
+            if (current is null || !File.Exists(current))
+            {
+                Sc($"config {ServiceConstants.ServiceName} binPath= \"\\\"{exe}\\\"\"");
+                Console.WriteLine($"The service now runs {exe}.");
+            }
+            else
+            {
+                Console.WriteLine($"The service is already installed ({current}).");
+            }
         }
 
+        Configure();
         return Start();
+    }
+
+    /// <summary>Automatic start, restart on failure, description and start permission for signed-in users.</summary>
+    private static int Configure()
+    {
+        Sc($"config {ServiceConstants.ServiceName} start= auto");
+        Sc($"description {ServiceConstants.ServiceName} \"{ServiceConstants.Description}\"");
+        Sc($"failure {ServiceConstants.ServiceName} reset= 86400 actions= restart/5000/restart/15000/restart/60000");
+        TrySc($"failureflag {ServiceConstants.ServiceName} 1");
+        TrySc($"sdset {ServiceConstants.ServiceName} {ServiceSddl}");
+        Console.WriteLine("Service configured: starts automatically and restarts after failures.");
+        return 0;
+    }
+
+    /// <summary>Path of the executable the installed service runs, or null.</summary>
+    internal static string? GetInstalledServicePath()
+    {
+        using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{ServiceConstants.ServiceName}");
+        var imagePath = key?.GetValue("ImagePath") as string;
+        if (string.IsNullOrWhiteSpace(imagePath))
+        {
+            return null;
+        }
+
+        imagePath = Environment.ExpandEnvironmentVariables(imagePath.Trim());
+        if (imagePath.StartsWith('"'))
+        {
+            int end = imagePath.IndexOf('"', 1);
+            return end > 1 ? imagePath[1..end] : null;
+        }
+
+        int exeEnd = imagePath.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+        return exeEnd > 0 ? imagePath[..(exeEnd + 4)] : imagePath;
     }
 
     private static int Uninstall(bool keepRules)
@@ -210,6 +261,18 @@ internal static class ServiceCli
 
     private static bool ServiceExists() =>
         ServiceController.GetServices().Any(s => string.Equals(s.ServiceName, ServiceConstants.ServiceName, StringComparison.OrdinalIgnoreCase));
+
+    private static void TrySc(string arguments)
+    {
+        try
+        {
+            Sc(arguments);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+        }
+    }
 
     private static void Sc(string arguments)
     {

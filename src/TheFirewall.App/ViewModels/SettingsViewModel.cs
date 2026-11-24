@@ -285,9 +285,18 @@ public sealed partial class SettingsViewModel : PageViewModel
             return;
         }
 
-        var error = verb == "restart"
-            ? await WindowsServiceControl.RunElevatedAsync("stop") ?? await WindowsServiceControl.RunElevatedAsync("start")
-            : await WindowsServiceControl.RunElevatedAsync(verb);
+        string? error;
+        if (verb is "start" or "install")
+        {
+            var result = await ServiceBootstrapper.EnsureRunningAsync();
+            error = result.IsRunning || result.Outcome == EnsureServiceOutcome.Declined ? null : result.Message;
+        }
+        else
+        {
+            error = verb == "restart"
+                ? await WindowsServiceControl.RunElevatedAsync("stop") ?? await WindowsServiceControl.RunElevatedAsync("start")
+                : await WindowsServiceControl.RunElevatedAsync(verb);
+        }
         if (error is not null)
         {
             UiDialogs.Error("TheFirewall service", error);

@@ -196,6 +196,10 @@ public sealed class TrayIcon : IDisposable
         ShowBalloon(title, body, WinForms.ToolTipIcon.None, "bans");
     }
 
+    /// <summary>Shows a notification from the tray icon; clicking it opens the dashboard.</summary>
+    public void ShowNotification(string title, string text, bool warning) =>
+        ShowBalloon(title, text, warning ? WinForms.ToolTipIcon.Warning : WinForms.ToolTipIcon.Info, "dashboard");
+
     private void ShowBalloon(string title, string text, WinForms.ToolTipIcon icon, string? target)
     {
         balloonTarget = target;
@@ -266,13 +270,10 @@ public sealed class TrayIcon : IDisposable
         else if (!client.IsDemo)
         {
             var serviceState = WindowsServiceControl.GetState();
-            if (serviceState == ServiceInstallState.Stopped)
+            if (serviceState is ServiceInstallState.Stopped or ServiceInstallState.NotInstalled)
             {
-                menu.Items.Add(Item("Start the service", "", () => _ = RunServiceVerbAsync("start")));
-            }
-            else if (serviceState == ServiceInstallState.NotInstalled)
-            {
-                menu.Items.Add(Item("Install the service", "", () => _ = RunServiceVerbAsync("install")));
+                menu.Items.Add(Item(serviceState == ServiceInstallState.NotInstalled ? "Install and start the service" : "Start the service", "\uE768",
+                    () => _ = EnsureServiceAsync()));
             }
         }
 
@@ -323,12 +324,12 @@ public sealed class TrayIcon : IDisposable
         UpdateState();
     }
 
-    private static async Task RunServiceVerbAsync(string verb)
+    private static async Task EnsureServiceAsync()
     {
-        var error = await WindowsServiceControl.RunElevatedAsync(verb);
-        if (error is not null)
+        var result = await ServiceBootstrapper.EnsureRunningAsync();
+        if (!result.IsRunning && result.Outcome != EnsureServiceOutcome.Declined)
         {
-            UiDialogs.Error("TheFirewall service", error);
+            UiDialogs.Error("TheFirewall service", result.Message ?? "The service could not be started.");
         }
     }
 

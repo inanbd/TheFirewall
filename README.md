@@ -67,14 +67,23 @@ TheFirewall.exe --demo
 
 Requirements: Windows 10 1809+ / Windows Server 2019+ (x64). Windows Defender Firewall must be on.
 
-**Without the installer** – copy the published files to a folder and run in an elevated PowerShell:
+**Without the installer (portable)** – extract the zip anywhere and run `TheFirewall.exe`. The app always makes sure
+the protection service is running:
+
+- if the service is not installed, it installs it from the app folder and starts it (Windows asks for administrator
+  permission once). From then on the service starts automatically with Windows;
+- if the service is stopped, it starts it, without a UAC prompt;
+- if the service still points to a copy you deleted or moved, it repairs it to use the current folder.
+
+You can do the same from a script or an elevated prompt:
 
 ```powershell
-.\TheFirewall.Service.exe install          # install and start the service
-.\TheFirewall.Service.exe register-tray     # optional: tray icon at sign-in for every user
+.\TheFirewall.exe --ensure-service        # install/start the service and exit (exit code 0 = running)
+.\TheFirewall.Service.exe install         # or install it directly
+.\TheFirewall.Service.exe register-tray   # optional: tray icon at sign-in for every user
 ```
 
-The app can also install, start and stop the service from **Settings → This computer**.
+If the service ever crashes, Windows restarts it automatically.
 
 ## How it works
 

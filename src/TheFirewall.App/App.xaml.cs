@@ -47,6 +47,13 @@ public partial class App : Application
 
     private void Start(StartupEventArgs e, HashSet<string> args, bool screenshots, int screenshotIndex)
     {
+        if (args.Contains("--ensure-service"))
+        {
+            // Headless: make sure the service is installed and running, then exit (used by scripts and CI).
+            _ = EnsureServiceHeadlessAsync();
+            return;
+        }
+
 
         DispatcherUnhandledException += OnUnhandledException;
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/TheFirewall;component/Themes/Derived.xaml", UriKind.Relative) });
@@ -89,6 +96,74 @@ public partial class App : Application
         {
             ShowMainWindow(null);
         }
+
+        if (!IsDemo)
+        {
+            _ = EnsureServiceAtStartupAsync();
+        }
+    }
+
+    /// <summary>The app always makes sure the protection service is installed and running.</summary>
+    private async Task EnsureServiceAtStartupAsync()
+    {
+        EnsureServiceResult result;
+        try
+        {
+            result = await ServiceBootstrapper.EnsureRunningAsync();
+        }
+        catch (Exception ex)
+        {
+            LogError(ex);
+            return;
+        }
+
+        switch (result.Outcome)
+        {
+            case EnsureServiceOutcome.Installed:
+                tray?.ShowNotification("TheFirewall is now protecting this computer",
+                    "The service was installed. It runs in the background and starts automatically with Windows.", warning: false);
+                break;
+            case EnsureServiceOutcome.Declined:
+                tray?.ShowNotification("TheFirewall is not running",
+                    "Starting the protection service needs administrator permission. Open TheFirewall and choose Start service.", warning: true);
+                break;
+            case EnsureServiceOutcome.Failed or EnsureServiceOutcome.MissingServiceExe:
+                if (mainWindow is { IsVisible: true })
+                {
+                    UiDialogs.Error("TheFirewall service could not be started", result.Message ?? "Unknown error.");
+                }
+                else
+                {
+                    tray?.ShowNotification("TheFirewall service could not be started", result.Message ?? "Unknown error.", warning: true);
+                }
+
+                break;
+        }
+    }
+
+    private async Task EnsureServiceHeadlessAsync()
+    {
+        int exitCode;
+        try
+        {
+            var result = await ServiceBootstrapper.EnsureRunningAsync();
+            Console.WriteLine($"{result.Outcome}{(result.Message is null ? string.Empty : ": " + result.Message)}");
+            exitCode = result.Outcome switch
+            {
+                _ when result.IsRunning => 0,
+                EnsureServiceOutcome.Declined => 2,
+                EnsureServiceOutcome.MissingServiceExe => 3,
+                _ => 1,
+            };
+        }
+        catch (Exception ex)
+        {
+            LogError(ex);
+            Console.WriteLine(ex.Message);
+            exitCode = 1;
+        }
+
+        Shutdown(exitCode);
     }
 
     public static void ApplyTheme(string theme)

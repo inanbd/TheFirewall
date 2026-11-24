@@ -24,6 +24,7 @@ public sealed partial class DashboardViewModel : PageViewModel
         Client.ActivityReceived += OnActivity;
         Client.StatusReceived += (_, status) => ApplyStatus(status);
         Client.ConnectionChanged += (_, _) => UpdateHero();
+        ServiceBootstrapper.BusyChanged += () => System.Windows.Application.Current?.Dispatcher.InvokeAsync(UpdateHero);
     }
 
     public override string Key => "dashboard";
@@ -114,6 +115,16 @@ public sealed partial class DashboardViewModel : PageViewModel
         if (!Client.IsConnected || status is null)
         {
             Protection = ProtectionKind.Offline;
+            if (ServiceBootstrapper.IsBusy)
+            {
+                HeroTitle = "Starting TheFirewall service…";
+                HeroText = ServiceState == ServiceInstallState.NotInstalled
+                    ? "Installing the protection service. Windows may ask for administrator permission."
+                    : "This only takes a moment.";
+                PrimaryActionText = null;
+                return;
+            }
+
             switch (ServiceState)
             {
                 case ServiceInstallState.NotInstalled:
@@ -178,11 +189,10 @@ public sealed partial class DashboardViewModel : PageViewModel
             return;
         }
 
-        var verb = ServiceState == ServiceInstallState.NotInstalled ? "install" : "start";
-        var error = await WindowsServiceControl.RunElevatedAsync(verb);
-        if (error is not null)
+        var result = await ServiceBootstrapper.EnsureRunningAsync();
+        if (!result.IsRunning && result.Outcome != EnsureServiceOutcome.Declined)
         {
-            UiDialogs.Error("TheFirewall service", error);
+            UiDialogs.Error("TheFirewall service", result.Message ?? "The service could not be started.");
         }
 
         UpdateHero();

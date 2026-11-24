@@ -56,11 +56,16 @@
     <CustomAction Id="RegisterTray" FileRef="ServiceExe" ExeCommand="register-tray &quot;[INSTALLFOLDER]TheFirewall.exe&quot;"
                   Execute="deferred" Impersonate="no" Return="ignore" />
 
+    <!-- Let signed-in users (the tray app) start the service if it was stopped, and restart it after any failure. -->
+    <CustomAction Id="ConfigureService" FileRef="ServiceExe" ExeCommand="configure"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
     <!-- On a real uninstall (not an upgrade): delete firewall rules created by TheFirewall and the sign-in task. -->
     <CustomAction Id="Cleanup" FileRef="ServiceExe" ExeCommand="cleanup"
                   Execute="deferred" Impersonate="no" Return="ignore" />
 
     <InstallExecuteSequence>
+      <Custom Action="ConfigureService" After="StartServices" Condition="NOT REMOVE" />
       <Custom Action="RegisterTray" Before="InstallFinalize" Condition="NOT REMOVE" />
       <Custom Action="Cleanup" Before="RemoveFiles" Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
     </InstallExecuteSequence>
