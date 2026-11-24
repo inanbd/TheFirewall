@@ -44,8 +44,15 @@ easy-to-use control panel and a tray icon that shows at a glance whether you are
 
 ## Screenshots
 
-Screenshots of every page are rendered by CI from the built-in demo mode (see the *screenshots* artifact of the
-[Build workflow](../../actions/workflows/build.yml)). You can explore the UI yourself without installing anything:
+| | |
+| --- | --- |
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Dashboard in dark mode](docs/screenshots/dashboard-dark.png) |
+| ![Live activity](docs/screenshots/live-activity.png) | ![Banned addresses](docs/screenshots/banned-addresses.png) |
+| ![Login monitors](docs/screenshots/login-monitors.png) | ![Custom login monitor with tester](docs/screenshots/custom-monitor.png) |
+| ![Country blocking](docs/screenshots/countries.png) | ![Firewall rules](docs/screenshots/firewall-rules.png) |
+
+These are rendered by CI from the built-in demo mode (every page is rendered on each build as a UI smoke test).
+You can explore the app without installing the service:
 
 ```bash
 TheFirewall.exe --demo
