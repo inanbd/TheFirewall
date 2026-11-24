@@ -121,6 +121,10 @@ dotnet test tests/TheFirewall.Core.Tests
 ./build/publish.ps1 -Version 1.0.0     # self-contained publish + MSI in ./artifacts
 ```
 
+To publish a release, add release notes to `docs/releases/v<version>.md`. Then either push a `v<version>` tag, or run
+the **Build** workflow by hand (Actions → Build → Run workflow) with *release_version* set. The workflow attaches the MSI,
+a portable zip and SHA-256 checksums to the GitHub release.
+
 Project layout:
 
 | Folder | What |

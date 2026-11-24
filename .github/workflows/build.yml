@@ -6,6 +6,11 @@ on:
     tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Publish a GitHub release with this version, e.g. 1.0.0 (creates tag v1.0.0). Leave empty for a normal build.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -28,7 +33,10 @@ jobs:
         shell: pwsh
         run: |
           # MSI versions must be numeric, so a tag like v1.2.0-rc.1 builds version 1.2.0.
-          $version = if ("${{ github.ref_type }}" -eq "tag") { ("${{ github.ref_name }}".TrimStart('v') -split '-')[0] } else { "1.0.${{ github.run_number }}" }
+          $requested = "${{ inputs.release_version }}".Trim().TrimStart('v')
+          $version = if ($requested) { ($requested -split '-')[0] }
+                     elseif ("${{ github.ref_type }}" -eq "tag") { ("${{ github.ref_name }}".TrimStart('v') -split '-')[0] }
+                     else { "1.0.${{ github.run_number }}" }
           "value=$version" >> $env:GITHUB_OUTPUT
 
       - name: Build
@@ -85,11 +93,12 @@ jobs:
           name: TheFirewall-${{ steps.version.outputs.value }}-x64-msi
           path: artifacts/installer/*.msi
 
-  # Pushing a tag such as v1.2.3 publishes a GitHub release with the installer, a portable zip and checksums.
-  # Release notes are read from docs/releases/<tag>.md when present.
+  # Publishes a GitHub release with the installer, a portable zip and checksums, either when a tag such as
+  # v1.2.3 is pushed or when the workflow is run by hand with a release version (the tag is then created on the
+  # built commit). Release notes are read from docs/releases/<tag>.md when present.
   release:
     needs: build
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && inputs.release_version != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -104,18 +113,20 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.release_version }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then tag="$GITHUB_REF_NAME"; else tag="v${REQUESTED_VERSION#v}"; fi
+          version="${tag#v}"
           numeric="${version%%-*}"
           cd dist
           (cd "TheFirewall-${numeric}-x64-portable" && zip -qr "../TheFirewall-${version}-x64-portable.zip" .)
           cp "TheFirewall-${numeric}-x64-msi/"*.msi .
           sha256sum *.msi *.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
-          notes="../docs/releases/${GITHUB_REF_NAME}.md"
+          notes="../docs/releases/${tag}.md"
           if [ -f "$notes" ]; then notes_args=(--notes-file "$notes"); else notes_args=(--generate-notes); fi
           prerelease_args=()
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease_args=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" *.msi *.zip SHA256SUMS.txt \
+          if [[ "$tag" == *-* ]]; then prerelease_args=(--prerelease); fi
+          gh release create "$tag" *.msi *.zip SHA256SUMS.txt --target "$GITHUB_SHA" \
             --repo "$GITHUB_REPOSITORY" --title "TheFirewall ${version}" "${notes_args[@]}" "${prerelease_args[@]}"
