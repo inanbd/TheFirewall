@@ -11,7 +11,8 @@ param(
     [string]$Configuration = "Release",
     [ValidateSet("win-x64", "win-arm64")]
     [string]$Runtime = "win-x64",
-    [switch]$SkipInstaller
+    [switch]$SkipInstaller,
+    [switch]$InstallerOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,6 +20,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $publishDir = Join-Path $root "artifacts/publish/$Runtime"
 $installerDir = Join-Path $root "artifacts/installer"
 
+if (-not $InstallerOnly) {
 if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 
 # App and service share one self-contained runtime in the same folder.
@@ -32,8 +34,10 @@ if ($LASTEXITCODE -ne 0) { throw "App publish failed" }
 Write-Host "Publishing service..." -ForegroundColor Cyan
 dotnet publish (Join-Path $root "src/TheFirewall.Service/TheFirewall.Service.csproj") @common
 if ($LASTEXITCODE -ne 0) { throw "Service publish failed" }
+}
 
 if ($SkipInstaller) { return }
+if (-not (Test-Path (Join-Path $publishDir "TheFirewall.Service.exe"))) { throw "Publish first (run without -InstallerOnly)." }
 
 Write-Host "Building installer..." -ForegroundColor Cyan
 $platform = if ($Runtime -eq "win-arm64") { "ARM64" } else { "x64" }

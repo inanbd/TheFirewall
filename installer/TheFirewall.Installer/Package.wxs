@@ -20,8 +20,9 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of TheFirewall is already installed." AllowSameVersionUpgrades="yes" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
-    <Icon Id="AppIcon" SourceFile="..\..\src\TheFirewall.App\Assets\TheFirewall.ico" />
-    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <!-- ICE50: an advertised shortcut's icon id must have the same extension as its target (.exe). -->
+    <Icon Id="TheFirewallIcon.exe" SourceFile="..\..\src\TheFirewall.App\Assets\TheFirewall.ico" />
+    <Property Id="ARPPRODUCTICON" Value="TheFirewallIcon.exe" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/inanbd/TheFirewall" />
     <Property Id="ARPHELPLINK" Value="https://github.com/inanbd/TheFirewall" />
     <Property Id="ARPCOMMENTS" Value="Bans IP addresses after repeated failed logins using Windows Defender Firewall." />
@@ -102,7 +103,7 @@
                   Name="TheFirewall"
                   Description="TheFirewall - brute-force protection"
                   WorkingDirectory="INSTALLFOLDER"
-                  Icon="AppIcon"
+                  Icon="TheFirewallIcon.exe"
                   Advertise="yes" />
       </File>
     </Component>
