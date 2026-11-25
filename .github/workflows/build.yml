@@ -167,6 +167,16 @@ jobs:
             if (-not ($mine | Where-Object { $_ -match 'FailedLogin|Ignored' })) { Write-Host $activity; throw 'The failed Windows logon was not detected.' }
             if ($mine | Where-Object { $_ -match 'SuccessfulLogin' }) { throw 'A failed Windows logon was reported as a successful sign-in.' }
 
+            Write-Host '3c. The service downloads and loads the country database (db-ip.com).'
+            $deadline = (Get-Date).AddSeconds(150)
+            do {
+              $check = & $svc check | Out-String
+              $geoReady = $check -match 'Country database: \d{4}-\d{2}'
+              if (-not $geoReady) { Start-Sleep -Seconds 5 }
+            } until ($geoReady -or (Get-Date) -gt $deadline)
+            ($check -split "`r?`n" | Where-Object { $_ -match 'Country database' }) | ForEach-Object { Write-Host $_ }
+            if (-not $geoReady) { throw 'The country database was not downloaded and loaded.' }
+
             Write-Host '4. Uninstalling removes the service and its firewall rules.'
             & $svc uninstall
             if ($LASTEXITCODE -ne 0) { throw "uninstall failed ($LASTEXITCODE)" }

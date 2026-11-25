@@ -189,3 +189,67 @@ public class CountryValidationTests
         Assert.Contains(errors, e => e.Contains("'XX'", StringComparison.Ordinal));
     }
 }
+
+public class GeoIpUpdaterTests
+{
+    private sealed class GzipCsvHandler(byte[] body) : HttpMessageHandler
+    {
+        public List<string> Requested { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requested.Add(request.RequestUri!.ToString());
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(body) });
+        }
+    }
+
+    private static byte[] Gzip(string text)
+    {
+        using var output = new MemoryStream();
+        using (var gzip = new System.IO.Compression.GZipStream(output, System.IO.Compression.CompressionLevel.Fastest))
+        {
+            gzip.Write(System.Text.Encoding.UTF8.GetBytes(text));
+        }
+
+        return output.ToArray();
+    }
+
+    [Fact]
+    public async Task Downloads_installs_and_reloads_the_country_database()
+    {
+        using var dir = new TempDirectory();
+        var handler = new GzipCsvHandler(Gzip("1.0.0.0,1.0.0.255,AU\n8.8.8.0,8.8.8.255,US\n"));
+        var time = new ManualTimeProvider(new DateTimeOffset(2026, 11, 25, 0, 0, 0, TimeSpan.Zero));
+        var updater = new GeoIpUpdater(new HttpClient(handler), Log.Null, time);
+
+        Assert.True(updater.IsUpdateDue(dir.Path));
+        var db = await updater.UpdateAsync(dir.Path, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(db);
+        Assert.Equal("US", db.Lookup("8.8.8.8"));
+        Assert.Equal("https://download.db-ip.com/free/dbip-country-lite-2026-11.csv.gz", Assert.Single(handler.Requested));
+        Assert.Equal("2026-11", GeoIpUpdater.GetInstalledVersion(dir.Path));
+        Assert.False(updater.IsUpdateDue(dir.Path));
+        Assert.Equal("AU", GeoIpUpdater.TryLoadInstalled(dir.Path, Log.Null)!.Lookup("1.0.0.7"));
+        Assert.Empty(Directory.GetFiles(dir.Path, "*.download"));
+    }
+
+    [Fact]
+    public void Countries_are_added_to_earlier_activity()
+    {
+        using var dir = new TempDirectory();
+        using var db = new Data.FirewallDatabase(dir.File("t.db"));
+        var engine = new BanEngine(db, new FirewallSettings(), Log.Null, countryLookup: _ => null);
+        engine.Process(new Monitoring.LoginEvent { IPAddress = "8.8.8.8", Source = "RDP", UserName = "admin" });
+        Assert.Empty(db.GetDashboardStats(DateTimeOffset.UtcNow).TopCountries);
+
+        var geo = GeoIpDatabase.Load(new StringReader("8.8.8.0,8.8.8.255,US\n1.0.0.0,1.0.0.255,AU\n"), DateTimeOffset.UtcNow);
+        var missing = db.GetAddressesWithoutCountry();
+        Assert.Equal(["8.8.8.8"], missing);
+        db.SetCountries(missing.Where(ip => geo.Lookup(ip) is not null).ToDictionary(ip => ip, ip => geo.Lookup(ip)!));
+
+        Assert.Equal("US", Assert.Single(db.GetDashboardStats(DateTimeOffset.UtcNow).TopCountries).Name);
+        Assert.Equal("US", db.GetRecord("8.8.8.8")!.Country);
+        Assert.Empty(db.GetAddressesWithoutCountry());
+    }
+}

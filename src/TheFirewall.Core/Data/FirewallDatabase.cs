@@ -297,6 +297,61 @@ public sealed class FirewallDatabase : IFilePositionStore, IDisposable
         }
     }
 
+    /// <summary>Addresses in the activity history or address table that have no country yet.</summary>
+    public List<string> GetAddressesWithoutCountry(int limit = 100_000)
+    {
+        lock (sync)
+        {
+            using var cmd = Command("""
+                SELECT ip FROM activity WHERE ip IS NOT NULL AND (country IS NULL OR country = '')
+                UNION
+                SELECT ip FROM ip_state WHERE country IS NULL OR country = ''
+                LIMIT $limit
+                """, ("$limit", limit));
+            using var reader = cmd.ExecuteReader();
+            var list = new List<string>();
+            while (reader.Read())
+            {
+                list.Add(reader.GetString(0));
+            }
+
+            return list;
+        }
+    }
+
+    /// <summary>Fills in missing countries (activity history and address table).</summary>
+    public int SetCountries(IReadOnlyDictionary<string, string> countries)
+    {
+        if (countries.Count == 0)
+        {
+            return 0;
+        }
+
+        lock (sync)
+        {
+            using var tx = connection.BeginTransaction();
+            using var activity = Command("UPDATE activity SET country = $c WHERE ip = $ip AND (country IS NULL OR country = '')");
+            using var state = Command("UPDATE ip_state SET country = $c WHERE ip = $ip AND (country IS NULL OR country = '')");
+            activity.Transaction = tx;
+            state.Transaction = tx;
+            var c1 = activity.Parameters.Add("$c", SqliteType.Text);
+            var ip1 = activity.Parameters.Add("$ip", SqliteType.Text);
+            var c2 = state.Parameters.Add("$c", SqliteType.Text);
+            var ip2 = state.Parameters.Add("$ip", SqliteType.Text);
+            int updated = 0;
+            foreach (var (ip, country) in countries)
+            {
+                c1.Value = c2.Value = country;
+                ip1.Value = ip2.Value = ip;
+                updated += activity.ExecuteNonQuery();
+                state.ExecuteNonQuery();
+            }
+
+            tx.Commit();
+            return updated;
+        }
+    }
+
     public int PruneActivity(DateTimeOffset before)
     {
         lock (sync)

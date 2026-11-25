@@ -241,6 +241,9 @@ internal static class ServiceCli
         var status = await client.RequestAsync<Core.Ipc.ServiceStatusDto>(Core.Ipc.IpcCommands.Status);
         Console.WriteLine($"Connected to TheFirewall service {hello.ServiceVersion} on {hello.MachineName} as {hello.UserName}.");
         Console.WriteLine(hello.IsAdministrator ? "This user may change settings (administrator)." : "This user has read-only access.");
+        Console.WriteLine(status?.GeoDatabaseAvailable == true
+            ? $"Country database: {status.GeoDatabaseVersion}"
+            : $"Country database: not available{(status?.GeoDatabaseError is { } geoError ? " (" + geoError + ")" : string.Empty)}");
         foreach (var warning in status?.Warnings ?? [])
         {
             Console.WriteLine("Warning: " + warning);

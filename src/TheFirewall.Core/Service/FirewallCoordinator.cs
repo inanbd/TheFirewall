@@ -160,6 +160,10 @@ public sealed class FirewallCoordinator : IAsyncDisposable
 
         engine.RunHousekeeping();
         await SyncFirewallAsync(cancellationToken).ConfigureAwait(false);
+        if (geo is not null)
+        {
+            _ = Task.Run(BackfillCountries, CancellationToken.None);
+        }
 
         var token = shutdown.Token;
         loops.Add(Task.Run(() => ProcessEventsAsync(token), CancellationToken.None));
@@ -522,6 +526,7 @@ public sealed class FirewallCoordinator : IAsyncDisposable
         geo = updated;
         geoError = null;
         countryCache = null;
+        BackfillCountries();
         Engine.Log(ActivityType.Info, $"Country database updated ({GeoIpUpdater.GetInstalledVersion(paths.GeoDirectory)}).");
         await SyncFirewallAsync(cancellationToken).ConfigureAwait(false);
         return true;
@@ -587,6 +592,44 @@ public sealed class FirewallCoordinator : IAsyncDisposable
         }
 
         StatusChanged?.Invoke(GetStatus());
+    }
+
+    /// <summary>
+    /// Adds countries to history recorded while the country database was not available yet, so the dashboard's
+    /// "Attacks by country" covers past activity too.
+    /// </summary>
+    public int BackfillCountries()
+    {
+        var database = geo;
+        if (database is null || db is null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            var countries = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ip in Database.GetAddressesWithoutCountry())
+            {
+                if (database.Lookup(ip) is { } country)
+                {
+                    countries[ip] = country;
+                }
+            }
+
+            int updated = Database.SetCountries(countries);
+            if (updated > 0)
+            {
+                logger.LogInformation("Added countries to {Count} earlier activity entries", updated);
+            }
+
+            return updated;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Unable to add countries to earlier activity");
+            return 0;
+        }
     }
 
     /// <summary>Deletes every firewall rule TheFirewall created (used on uninstall).</summary>

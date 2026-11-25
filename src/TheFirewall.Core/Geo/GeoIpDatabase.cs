@@ -38,7 +38,13 @@ public sealed class GeoIpDatabase
     public static GeoIpDatabase Load(string path, DateTimeOffset? buildDate = null)
     {
         using var file = File.OpenRead(path);
-        Stream stream = path.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) ? new GZipStream(file, CompressionMode.Decompress) : file;
+
+        // Decide by content, not by name: downloads are first saved under a temporary name.
+        Span<byte> magic = stackalloc byte[2];
+        int read = file.Read(magic);
+        file.Position = 0;
+        bool gzip = read == 2 && magic[0] == 0x1F && magic[1] == 0x8B;
+        Stream stream = gzip ? new GZipStream(file, CompressionMode.Decompress) : file;
         using (stream)
         using (var reader = new StreamReader(stream))
         {
