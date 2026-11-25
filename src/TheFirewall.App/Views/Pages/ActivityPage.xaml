@@ -79,7 +79,7 @@
             </ContextMenu>
           </DataGrid.ContextMenu>
           <DataGrid.Columns>
-            <DataGridTemplateColumn Header="Time" Width="95" MinWidth="95" SortMemberPath="TimeUtc">
+            <DataGridTemplateColumn Header="Time" Width="90" MinWidth="90" SortMemberPath="TimeUtc">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
                   <TextBlock Text="{Binding TimeUtc, Converter={StaticResource RelativeTime}}" VerticalAlignment="Center"
@@ -87,7 +87,7 @@
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTemplateColumn Header="Event" Width="128" MinWidth="128" SortMemberPath="Type">
+            <DataGridTemplateColumn Header="Event" Width="120" MinWidth="120" SortMemberPath="Type">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
                   <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -98,7 +98,7 @@
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTemplateColumn Header="Address" Width="170" MinWidth="170" SortMemberPath="IPAddress">
+            <DataGridTemplateColumn Header="Address" Width="150" MinWidth="150" SortMemberPath="IPAddress">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
                   <TextBlock Text="{Binding IPAddress}" Style="{StaticResource Mono}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
@@ -106,10 +106,10 @@
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTemplateColumn Header="Country" Width="165" MinWidth="165" SortMemberPath="Country" CellTemplate="{StaticResource CountryCell}" />
-            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="95" MinWidth="95" />
-            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User name" Binding="{Binding UserName}" Width="120" MinWidth="120" />
-            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Details" Binding="{Binding Message}" Width="*" MinWidth="120" />
+            <DataGridTemplateColumn Header="Country" Width="150" MinWidth="150" SortMemberPath="Country" CellTemplate="{StaticResource CountryCell}" />
+            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="90" MinWidth="90" />
+            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User name" Binding="{Binding UserName}" Width="105" MinWidth="105" />
+            <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Details" Binding="{Binding Message}" Width="*" MinWidth="100" />
           </DataGrid.Columns>
         </DataGrid>
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="{Binding Items.Count, Converter={StaticResource ZeroToVisibility}}">
