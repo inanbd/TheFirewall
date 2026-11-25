@@ -182,13 +182,39 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "uninstall failed ($LASTEXITCODE)" }
             if (Get-Service TheFirewall -ErrorAction SilentlyContinue) { throw 'The service is still installed.' }
             if (Get-NetFirewallRule -DisplayName 'TheFirewall_*' -ErrorAction SilentlyContinue) { throw 'Firewall rules were left behind.' }
+
+            Write-Host '5. A portable copy extracted from a downloaded zip (marked as coming from the internet) installs the service too.'
+            $marked = @(Get-ChildItem $dir -File | Where-Object { $_.Extension -in '.exe', '.dll' })
+            foreach ($f in $marked) {
+              Set-Content -LiteralPath $f.FullName -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3`r`nHostUrl=https://github.com/"
+            }
+            try {
+              # Diagnostic: how 1.0.3 and earlier started the tool from an elevated app (through the shell, hidden).
+              $psi = [System.Diagnostics.ProcessStartInfo]::new($svc, 'status')
+              $psi.UseShellExecute = $true
+              $psi.WindowStyle = 'Hidden'
+              try {
+                $p = [System.Diagnostics.Process]::Start($psi)
+                if ($p.WaitForExit(30000)) { Write-Host "Shell start of the downloaded tool: exit code $($p.ExitCode)" } else { $p.Kill(); Write-Host 'Shell start of the downloaded tool: no exit within 30 s' }
+              }
+              catch { Write-Host "Shell start of the downloaded tool failed: $($_.Exception.InnerException.Message) $($_.Exception.Message)" }
+
+              Invoke-EnsureService 'install-downloaded'
+              & $svc uninstall
+              if ($LASTEXITCODE -ne 0) { throw "uninstall failed ($LASTEXITCODE)" }
+            }
+            finally {
+              $marked | Unblock-File
+            }
             Write-Host 'End-to-end test passed.'
           }
           finally {
             Get-ChildItem (Join-Path $env:ProgramData 'TheFirewall\logs') -Filter 'service-*.log' -ErrorAction SilentlyContinue |
               ForEach-Object { Write-Host "---- $($_.Name)"; Get-Content $_.FullName -Tail 80 }
-            $appLog = Join-Path $env:LOCALAPPDATA 'TheFirewall\app-errors.log'
-            if (Test-Path $appLog) { Write-Host '---- app-errors.log'; Get-Content $appLog }
+            foreach ($name in 'app.log', 'app-errors.log') {
+              $appLog = Join-Path $env:LOCALAPPDATA "TheFirewall\$name"
+              if (Test-Path $appLog) { Write-Host "---- $name"; Get-Content $appLog -Tail 80 }
+            }
           }
 
       - name: Upload portable build

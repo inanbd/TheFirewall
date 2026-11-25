@@ -62,8 +62,8 @@ public static class ServiceBootstrapper
 
             if (!File.Exists(WindowsServiceControl.ServiceExePath))
             {
-                return new EnsureServiceResult(EnsureServiceOutcome.MissingServiceExe,
-                    "TheFirewall.Service.exe is missing from the app folder, so the service cannot be installed. Re-extract the portable zip or run the installer.");
+                return Logged(new EnsureServiceResult(EnsureServiceOutcome.MissingServiceExe,
+                    "TheFirewall.Service.exe is missing from the app folder, so the service cannot be installed. Re-extract the portable zip or run the installer."));
             }
 
             // "install" creates (or re-points) the service, applies its settings and starts it.
@@ -81,12 +81,18 @@ public static class ServiceBootstrapper
     {
         if (result.Succeeded && WindowsServiceControl.GetState() is ServiceInstallState.Running or ServiceInstallState.Starting)
         {
-            return new EnsureServiceResult(success);
+            return Logged(new EnsureServiceResult(success));
         }
 
-        return result.Cancelled
+        return Logged(result.Cancelled
             ? new EnsureServiceResult(EnsureServiceOutcome.Declined, result.Error)
-            : new EnsureServiceResult(EnsureServiceOutcome.Failed, result.Error ?? "The service did not start. See %ProgramData%\\TheFirewall\\logs for details.");
+            : new EnsureServiceResult(EnsureServiceOutcome.Failed, result.Error ?? "The service did not start. See %ProgramData%\\TheFirewall\\logs for details."));
+    }
+
+    private static EnsureServiceResult Logged(EnsureServiceResult result)
+    {
+        AppLog.Write($"Service check: {result.Outcome}{(result.Message is null ? string.Empty : " - " + result.Message)}");
+        return result;
     }
 
     private static void SetBusy(bool busy)

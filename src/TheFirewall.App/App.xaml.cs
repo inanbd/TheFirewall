@@ -248,18 +248,7 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private static void LogError(Exception exception)
-    {
-        try
-        {
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TheFirewall");
-            Directory.CreateDirectory(dir);
-            File.AppendAllText(Path.Combine(dir, "app-errors.log"), $"{DateTime.Now:O} {exception}{Environment.NewLine}");
-        }
-        catch (Exception)
-        {
-        }
-    }
+    private static void LogError(Exception exception) => AppLog.Error(exception);
 
     private void OnUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {

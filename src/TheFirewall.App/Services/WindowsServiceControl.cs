@@ -113,7 +113,10 @@ public static class WindowsServiceControl
         }
     }
 
-    /// <summary>Runs "TheFirewall.Service.exe &lt;verb&gt;" elevated (UAC prompt unless already elevated) and waits for it.</summary>
+    /// <summary>
+    /// Runs "TheFirewall.Service.exe &lt;verb&gt;" as administrator (with a UAC prompt unless the app is elevated already)
+    /// and waits for it.
+    /// </summary>
     public static async Task<ServiceCommandResult> RunVerbAsync(string verb)
     {
         if (!File.Exists(ServiceExePath))
@@ -123,22 +126,7 @@ public static class WindowsServiceControl
 
         try
         {
-            using var process = Process.Start(new ProcessStartInfo(ServiceExePath, verb)
-            {
-                UseShellExecute = true,
-                Verb = Elevation.IsElevated ? string.Empty : "runas",
-                WindowStyle = ProcessWindowStyle.Hidden,
-                WorkingDirectory = AppContext.BaseDirectory,
-            });
-            if (process is null)
-            {
-                return ServiceCommandResult.Fail("The service tool could not be started.");
-            }
-
-            await process.WaitForExitAsync();
-            return process.ExitCode == 0
-                ? ServiceCommandResult.Ok
-                : ServiceCommandResult.Fail($"The command '{verb}' failed (exit code {process.ExitCode}). See %ProgramData%\\TheFirewall\\logs for details.");
+            return Elevation.IsElevated ? await RunDirectAsync(verb) : await RunWithPromptAsync(verb);
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
         {
@@ -146,7 +134,95 @@ public static class WindowsServiceControl
         }
         catch (Exception ex)
         {
-            return ServiceCommandResult.Fail(ex.Message);
+            return ServiceCommandResult.Fail($"TheFirewall.Service.exe could not be run: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// The app is elevated already: start the tool directly, not through the Windows shell. The shell checks files
+    /// extracted from a downloaded zip ("this file came from another computer") and, because the tool runs without a
+    /// window, cannot show that prompt; it then refuses to run the tool and the install silently did nothing.
+    /// Running it directly also lets us show the tool's own error message.
+    /// </summary>
+    private static async Task<ServiceCommandResult> RunDirectAsync(string verb)
+    {
+        var info = new ProcessStartInfo(ServiceExePath)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = AppContext.BaseDirectory,
+        };
+        info.ArgumentList.Add(verb);
+
+        using var process = Process.Start(info) ?? throw new InvalidOperationException("The process did not start.");
+        var output = process.StandardOutput.ReadToEndAsync();
+        var errors = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            TryKill(process);
+            return ServiceCommandResult.Fail($"The command '{verb}' did not finish within 3 minutes.");
+        }
+
+        var text = ((await errors).Trim() + Environment.NewLine + (await output).Trim()).Trim();
+        AppLog.Write($"TheFirewall.Service.exe {verb} exited with code {process.ExitCode}.{(text.Length > 0 ? Environment.NewLine + text : string.Empty)}");
+        if (process.ExitCode == 0)
+        {
+            return ServiceCommandResult.Ok;
+        }
+
+        var detail = (await errors).Trim();
+        if (detail.Length == 0)
+        {
+            detail = LastLines((await output).Trim(), 6);
+        }
+
+        return ServiceCommandResult.Fail($"The command '{verb}' failed (exit code {process.ExitCode})." +
+                                         (detail.Length > 0 ? Environment.NewLine + Environment.NewLine + detail : " See %ProgramData%\\TheFirewall\\logs for details."));
+    }
+
+    /// <summary>The app is not elevated: ask for administrator permission (UAC) through the shell.</summary>
+    private static async Task<ServiceCommandResult> RunWithPromptAsync(string verb)
+    {
+        using var process = Process.Start(new ProcessStartInfo(ServiceExePath, verb)
+        {
+            UseShellExecute = true,
+            Verb = "runas",
+            WindowStyle = ProcessWindowStyle.Hidden,
+            WorkingDirectory = AppContext.BaseDirectory,
+        });
+        if (process is null)
+        {
+            return ServiceCommandResult.Fail("The service tool could not be started.");
+        }
+
+        await process.WaitForExitAsync();
+        return process.ExitCode == 0
+            ? ServiceCommandResult.Ok
+            : ServiceCommandResult.Fail($"The command '{verb}' failed (exit code {process.ExitCode}). See %ProgramData%\\TheFirewall\\logs for details.");
+    }
+
+    private static string LastLines(string text, int count)
+    {
+        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return string.Join(Environment.NewLine, lines.Skip(Math.Max(0, lines.Length - count)));
+    }
+
+    private static void TryKill(Process process)
+    {
+        try
+        {
+            process.Kill(entireProcessTree: true);
+        }
+        catch (Exception)
+        {
+            // Already gone.
         }
     }
 
