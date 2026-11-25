@@ -79,6 +79,7 @@ jobs:
 
       - name: End-to-end test (app starts the service, attackers get banned in Windows Firewall)
         shell: pwsh
+        timeout-minutes: 15
         run: |
           $ErrorActionPreference = 'Stop'
           $dir = (Resolve-Path artifacts/publish/win-x64).Path
@@ -189,16 +190,8 @@ jobs:
               Set-Content -LiteralPath $f.FullName -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3`r`nHostUrl=https://github.com/"
             }
             try {
-              # Diagnostic: how 1.0.3 and earlier started the tool from an elevated app (through the shell, hidden).
-              $psi = [System.Diagnostics.ProcessStartInfo]::new($svc, 'status')
-              $psi.UseShellExecute = $true
-              $psi.WindowStyle = 'Hidden'
-              try {
-                $p = [System.Diagnostics.Process]::Start($psi)
-                if ($p.WaitForExit(30000)) { Write-Host "Shell start of the downloaded tool: exit code $($p.ExitCode)" } else { $p.Kill(); Write-Host 'Shell start of the downloaded tool: no exit within 30 s' }
-              }
-              catch { Write-Host "Shell start of the downloaded tool failed: $($_.Exception.InnerException.Message) $($_.Exception.Message)" }
-
+              # 1.0.3 and earlier started the tool through the Windows shell, which waits on a "downloaded file"
+              # security prompt that nobody can see (a CI run hung here for an hour). The app now starts it directly.
               Invoke-EnsureService 'install-downloaded'
               & $svc uninstall
               if ($LASTEXITCODE -ne 0) { throw "uninstall failed ($LASTEXITCODE)" }
