@@ -15,7 +15,7 @@ namespace TheFirewall.Service;
 [SupportedOSPlatform("windows")]
 internal static class ServiceCli
 {
-    public static readonly string[] Verbs = ["install", "uninstall", "start", "stop", "status", "check", "configure", "remove-rules", "register-tray", "unregister-tray", "cleanup", "help", "--help", "-h", "/?"];
+    public static readonly string[] Verbs = ["install", "uninstall", "start", "stop", "status", "check", "activity", "configure", "remove-rules", "register-tray", "unregister-tray", "cleanup", "help", "--help", "-h", "/?"];
 
     /// <summary>
     /// Service permissions: the Windows defaults plus "start" for interactive users, so the app can start a stopped
@@ -33,7 +33,7 @@ internal static class ServiceCli
             return 0;
         }
 
-        if (verb is not ("status" or "check") && !IsElevated())
+        if (verb is not ("status" or "check" or "activity") && !IsElevated())
         {
             Console.Error.WriteLine("This command must be run as administrator.");
             return 5;
@@ -50,6 +50,7 @@ internal static class ServiceCli
                 "stop" => Stop(),
                 "status" => Status(),
                 "check" => Check(),
+                "activity" => ShowActivity(args.Length > 1 && int.TryParse(args[1], out var n) ? n : 30),
                 "remove-rules" => RemoveRules(),
                 "register-tray" => RegisterTray(args.Length > 1 ? args[1] : Path.Combine(AppContext.BaseDirectory, "TheFirewall.exe")),
                 "unregister-tray" => UnregisterTray(),
@@ -80,6 +81,7 @@ internal static class ServiceCli
               start | stop       Start or stop the service.
               status             Show whether the service is installed and running.
               check              Connect to the running service and show whether you may change settings.
+              activity [count]   Print the most recent activity (default 30 entries).
               remove-rules       Delete every firewall rule created by TheFirewall.
               register-tray      Start the tray app for every user at sign-in (Task Scheduler).
               unregister-tray    Remove the sign-in task.
@@ -196,6 +198,38 @@ internal static class ServiceCli
             Console.WriteLine("Unable to reach the TheFirewall service: " + ex.Message);
             return 5;
         }
+    }
+
+    private static int ShowActivity(int count)
+    {
+        try
+        {
+            return ShowActivityAsync(Math.Clamp(count, 1, 1000)).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Unable to reach the TheFirewall service: " + ex.Message);
+            return 5;
+        }
+    }
+
+    private static async Task<int> ShowActivityAsync(int count)
+    {
+        await using var client = new Core.Ipc.IpcClient();
+        await client.ConnectAsync(TimeSpan.FromSeconds(10));
+        var entries = await client.RequestAsync<List<Core.Data.ActivityEntry>>(Core.Ipc.IpcCommands.Activity, new Core.Data.ActivityQuery { Limit = count }) ?? [];
+        foreach (var e in entries.OrderBy(e => e.Id))
+        {
+            Console.WriteLine(string.Join("  ",
+                e.TimeUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture),
+                e.Type.ToString().PadRight(15),
+                (e.IPAddress ?? "-").PadRight(16),
+                (e.Source ?? "-").PadRight(10),
+                "user=" + (e.UserName ?? "-"),
+                e.Message));
+        }
+
+        return 0;
     }
 
     private static async Task<int> CheckAsync()

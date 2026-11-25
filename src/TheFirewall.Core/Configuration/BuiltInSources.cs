@@ -231,6 +231,8 @@ public static class BuiltInSources
             Success(EventLog("rdp-success", "Remote Desktop sign-ins", "RDP", RemoteAccess,
                 "Successful Remote Desktop sign-ins (event 4624, logon type 10). Shown in the activity feed.",
                 "Security", "*[System[(EventID=4624)]] and *[EventData[Data[@Name='LogonType']='10']]",
+                X("//EventID", "^4624$"),
+                X("//Data[@Name='LogonType']", "^10$"),
                 X("//Data[@Name='IpAddress']", @"(?<ipaddress>.+)"),
                 X("//Data[@Name='TargetUserName']", @"^(?<username>.+)$", optional: true))),
 
@@ -249,6 +251,7 @@ public static class BuiltInSources
                 "Successful SQL Server logins (event 18454). Can be very noisy on busy servers.",
                 "Application", "*[System[(EventID=18454)]]",
                 X("//Provider[contains(@Name,'MSSQL')]", string.Empty),
+                X("//EventID", "^18454$"),
                 X("(//Data)[1]", @"^(?<username>.+)$", optional: true),
                 X("(//Data)[2]", @"\[CLIENTE?\s?:\s?(?<ipaddress>[^\]]+)\]")), enabled: false),
 

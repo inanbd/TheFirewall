@@ -155,6 +155,18 @@ jobs:
             if (-not $fileBanned) { throw 'The attacker from the custom log file was not banned.' }
             if (-not $eventBanned) { throw 'The attacker from the Application event log was not banned.' }
 
+            Write-Host '3b. A real failed Windows logon (event 4625) is a failure, never a sign-in.'
+            for ($i = 0; $i -lt 3; $i++) {
+              cmd /c 'net use \\127.0.0.1\IPC$ /user:tfbaduser Wr0ng-Passw0rd-123 >nul 2>&1'
+              Start-Sleep -Milliseconds 1500
+            }
+            Start-Sleep -Seconds 5
+            $activity = & $svc activity 200 | Out-String
+            $mine = @($activity -split "`r?`n" | Where-Object { $_ -match 'tfbaduser' })
+            $mine | ForEach-Object { Write-Host $_ }
+            if (-not ($mine | Where-Object { $_ -match 'FailedLogin|Ignored' })) { Write-Host $activity; throw 'The failed Windows logon was not detected.' }
+            if ($mine | Where-Object { $_ -match 'SuccessfulLogin' }) { throw 'A failed Windows logon was reported as a successful sign-in.' }
+
             Write-Host '4. Uninstalling removes the service and its firewall rules.'
             & $svc uninstall
             if ($LASTEXITCODE -ne 0) { throw "uninstall failed ($LASTEXITCODE)" }

@@ -24,6 +24,25 @@ public class EventXmlMatcherTests
     }
 
     [Fact]
+    public void Failed_logon_is_never_a_successful_sign_in()
+    {
+        Assert.Null(EventXmlMatcher.Match(BuiltInSources.Find("rdp-success")!, Rdp4625, Now));
+    }
+
+    [Fact]
+    public void Remote_desktop_sign_in_is_detected()
+    {
+        var xml = Rdp4625.Replace("<EventID>4625</EventID>", "<EventID>4624</EventID>").Replace("<Data Name='LogonType'>3</Data>", "<Data Name='LogonType'>10</Data>");
+        var evt = EventXmlMatcher.Match(BuiltInSources.Find("rdp-success")!, xml, Now);
+        Assert.NotNull(evt);
+        Assert.Equal(LoginEventKind.Successful, evt.Kind);
+        Assert.Equal("administrator", evt.UserName);
+
+        // A network logon (type 3, e.g. a file share) is not a Remote Desktop sign-in.
+        Assert.Null(EventXmlMatcher.Match(BuiltInSources.Find("rdp-success")!, xml.Replace("<Data Name='LogonType'>10</Data>", "<Data Name='LogonType'>3</Data>"), Now));
+    }
+
+    [Fact]
     public void Rdp_failed_logon_without_ip_is_ignored()
     {
         var xml = Rdp4625.Replace("<Data Name='IpAddress'>45.141.84.10</Data>", "<Data Name='IpAddress'>-</Data>");

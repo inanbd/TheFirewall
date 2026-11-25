@@ -8,8 +8,9 @@ using TheFirewall.Core.Monitoring;
 namespace TheFirewall.Service.Windows;
 
 /// <summary>
-/// Subscribes to Windows event logs (one subscription per log) and runs every event through the
-/// XPath/regex expressions of the sources that watch that log.
+/// Subscribes to Windows event logs and runs each event through the XPath/regex expressions of its source.
+/// Every source has its own subscription with its own query, so a source only ever sees the events its query
+/// selects (a shared subscription would hand, say, failed logons to the "successful sign-ins" source).
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed class WindowsEventLogMonitor : ILoginMonitor
@@ -23,6 +24,7 @@ internal sealed class WindowsEventLogMonitor : ILoginMonitor
     private readonly Dictionary<string, SourceRuntime> sources = new(StringComparer.OrdinalIgnoreCase);
     private readonly Timer retryTimer;
     private IReadOnlyList<LogSourceDefinition> configured = [];
+    private HashSet<string>? logNames;
 
     public WindowsEventLogMonitor(Action<LoginEvent> sink, ILogger logger)
     {
@@ -55,33 +57,34 @@ internal sealed class WindowsEventLogMonitor : ILoginMonitor
                 }
             }
 
-            var byLog = configured.Where(d => d.Enabled && !string.IsNullOrWhiteSpace(d.LogName))
-                .GroupBy(d => d.LogName.Trim(), StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+            var wanted = configured.Where(d => d.Enabled && !string.IsNullOrWhiteSpace(d.LogName))
+                .ToDictionary(d => d.Id, StringComparer.OrdinalIgnoreCase);
 
-            foreach (var logName in subscriptions.Keys.Where(k => !byLog.ContainsKey(k)).ToList())
+            foreach (var id in subscriptions.Keys.Where(k => !wanted.ContainsKey(k)).ToList())
             {
-                subscriptions[logName].Dispose();
-                subscriptions.Remove(logName);
+                subscriptions[id].Dispose();
+                subscriptions.Remove(id);
             }
 
-            foreach (var (logName, defs) in byLog)
+            logNames = null; // re-read the list of logs once per configuration
+            foreach (var (id, def) in wanted)
             {
-                var query = BuildQuery(logName, defs);
-                if (subscriptions.TryGetValue(logName, out var existing))
+                var logName = def.LogName.Trim();
+                var query = BuildQuery(logName, [def]);
+                if (subscriptions.TryGetValue(id, out var existing))
                 {
-                    existing.Sources = defs;
-                    if (existing.Query == query && existing.Watcher is not null)
+                    existing.Sources = [def];
+                    if (string.Equals(existing.LogName, logName, StringComparison.OrdinalIgnoreCase) && existing.Query == query && existing.Watcher is not null)
                     {
                         continue;
                     }
 
                     existing.Dispose();
-                    subscriptions.Remove(logName);
+                    subscriptions.Remove(id);
                 }
 
-                var subscription = new LogSubscription(logName, query) { Sources = defs };
-                subscriptions[logName] = subscription;
+                var subscription = new LogSubscription(logName, query) { Sources = [def] };
+                subscriptions[id] = subscription;
                 Start(subscription);
             }
 
@@ -135,7 +138,7 @@ internal sealed class WindowsEventLogMonitor : ILoginMonitor
             subscription.Watcher = watcher;
             subscription.Error = null;
             subscription.Missing = false;
-            logger.LogInformation("Watching event log {Log}", subscription.LogName);
+            logger.LogInformation("Watching event log {Log} for {Source}", subscription.LogName, subscription.Sources.FirstOrDefault()?.Id);
         }
         catch (EventLogNotFoundException)
         {
@@ -153,8 +156,13 @@ internal sealed class WindowsEventLogMonitor : ILoginMonitor
     {
         try
         {
-            using var session = new EventLogSession();
-            return session.GetLogNames().Any(n => string.Equals(n, logName, StringComparison.OrdinalIgnoreCase));
+            if (logNames is null)
+            {
+                using var session = new EventLogSession();
+                logNames = new HashSet<string>(session.GetLogNames(), StringComparer.OrdinalIgnoreCase);
+            }
+
+            return logNames.Contains(logName);
         }
         catch (Exception ex)
         {
@@ -231,6 +239,7 @@ internal sealed class WindowsEventLogMonitor : ILoginMonitor
         lock (sync)
         {
             bool changed = false;
+            logNames = null;
             foreach (var subscription in subscriptions.Values.Where(s => s.Watcher is null))
             {
                 Start(subscription);
@@ -256,7 +265,7 @@ internal sealed class WindowsEventLogMonitor : ILoginMonitor
                 continue;
             }
 
-            if (!subscriptions.TryGetValue(def.LogName.Trim(), out var subscription))
+            if (!subscriptions.TryGetValue(def.Id, out var subscription))
             {
                 runtime.State = SourceState.Error;
                 runtime.Message = "No event log name configured.";
