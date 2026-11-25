@@ -24,6 +24,12 @@ public interface IFirewallClient
     /// <summary>Raised on the UI thread for every new activity entry.</summary>
     event EventHandler<ActivityEntry>? ActivityReceived;
 
+    /// <summary>Raised on the UI thread when an existing activity entry changed (same id).</summary>
+    event EventHandler<ActivityEntry>? ActivityUpdated;
+
+    /// <summary>Raised on the UI thread when activity entries were removed (ids).</summary>
+    event EventHandler<IReadOnlyList<long>>? ActivityRemoved;
+
     /// <summary>Raised on the UI thread when the service reports a new status.</summary>
     event EventHandler<ServiceStatusDto>? StatusReceived;
 

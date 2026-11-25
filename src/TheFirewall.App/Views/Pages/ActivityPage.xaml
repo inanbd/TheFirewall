@@ -67,6 +67,7 @@
               <MenuItem Header="Copy address" Command="{Binding CopyAddressCommand}" />
               <Separator />
               <MenuItem Header="Ban this address" Command="{Binding BanCommand}" />
+              <MenuItem Header="Ban this address forever" Command="{Binding BanForeverCommand}" />
               <MenuItem Header="Never ban this address (whitelist)" Command="{Binding WhitelistCommand}" />
             </ContextMenu>
           </DataGrid.ContextMenu>

@@ -21,7 +21,23 @@ public sealed class BanEngine
     private readonly ILogger logger;
     private readonly Func<string, string?> countryLookup;
     private readonly object sync = new();
+    private readonly Dictionary<string, RecentAttempts> recent = new(StringComparer.OrdinalIgnoreCase);
     private volatile PolicyContext context;
+
+    /// <summary>
+    /// Windows often reports one failed attempt in two logs (e.g. Security event 4625 and RdpCoreTS event 140).
+    /// Failures from different sources for the same address within this window are treated as one attempt.
+    /// </summary>
+    internal static readonly TimeSpan SameAttemptWindow = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Remote Desktop clients often log a "failed" step while negotiating credentials (NLA) right before a
+    /// successful sign-in. Failures this close before a successful sign-in from the same address belong to it.
+    /// </summary>
+    internal static readonly TimeSpan SignInHandshakeWindow = TimeSpan.FromSeconds(10);
+
+    /// <summary>Administrators get two success events per sign-in (standard and elevated token); show them once.</summary>
+    internal static readonly TimeSpan DuplicateSuccessWindow = TimeSpan.FromSeconds(10);
 
     public BanEngine(FirewallDatabase db, FirewallSettings settings, ILogger logger, TimeProvider? time = null, Func<string, string?>? countryLookup = null)
     {
@@ -34,6 +50,12 @@ public sealed class BanEngine
 
     /// <summary>Raised for every new activity entry (after it has been stored).</summary>
     public event Action<ActivityEntry>? ActivityAdded;
+
+    /// <summary>Raised when an existing activity entry changed (e.g. the user name became known).</summary>
+    public event Action<ActivityEntry>? ActivityUpdated;
+
+    /// <summary>Raised when activity entries were removed (failed steps that turned out to be part of a sign-in).</summary>
+    public event Action<IReadOnlyList<long>>? ActivityRemoved;
 
     public event Action<BanEventArgs>? AddressBanned;
 
@@ -69,19 +91,19 @@ public sealed class BanEngine
 
         if (evt.Kind == LoginEventKind.Successful)
         {
-            HandleSuccess(evt, ip, userName, country, now);
+            HandleSuccess(evt, ip, userName, country, eventTime, now);
             return;
         }
 
         if (!settings.BanPolicy.ProcessInternalAddresses && IPUtility.IsInternal(address))
         {
-            AddActivity(ActivityType.Ignored, ip, country, evt.Source, userName, "Failed login from a local network address (not counted).", now);
+            RecordIgnoredFailure(evt, ip, country, userName, eventTime, now, "Failed login from a local network address (not counted).");
             return;
         }
 
         if (ctx.IsWhitelisted(address, ip))
         {
-            AddActivity(ActivityType.Ignored, ip, country, evt.Source, userName, "Failed login from a whitelisted address (not counted).", now);
+            RecordIgnoredFailure(evt, ip, country, userName, eventTime, now, "Failed login from a whitelisted address (not counted).");
             return;
         }
 
@@ -95,13 +117,34 @@ public sealed class BanEngine
             record.LastLog = evt.LogText;
             record.LastActivityUtc = now;
 
+            var attempts = GetRecentAttempts(ip, eventTime);
+            if (IsPartOfRecentSignIn(attempts, evt, eventTime))
+            {
+                // A failed step of a sign-in that already succeeded, reported late by another log.
+                db.SaveRecord(record);
+                return;
+            }
+
+            var sameAttempt = FindSameAttempt(attempts, evt, eventTime);
+            if (sameAttempt is not null)
+            {
+                // The same attempt, reported by another log: do not count it again or add another row.
+                sameAttempt.MergedSources.Add(evt.SourceId);
+                MergeUserName(sameAttempt.Entry, userName);
+            }
+
             if (record.IsBanned)
             {
-                record.FailedCount += Math.Max(1, evt.Count);
-                record.LastFailedUtc = eventTime;
+                if (sameAttempt is null)
+                {
+                    record.FailedCount += Math.Max(1, evt.Count);
+                    record.LastFailedUtc = eventTime;
+                    var bannedEntry = AddActivity(ActivityType.FailedLogin, ip, country, evt.Source, userName,
+                        "Failed login from an address that is already banned (the firewall rule may still be applying, or the port is reachable another way).", now);
+                    attempts.Failures.Add(new RecentFailure(eventTime, evt.SourceId, evt.Source, bannedEntry, Counted: false));
+                }
+
                 db.SaveRecord(record);
-                AddActivity(ActivityType.FailedLogin, ip, country, evt.Source, userName,
-                    "Failed login from an address that is already banned (the firewall rule may still be applying, or the port is reachable another way).", now);
                 return;
             }
 
@@ -112,9 +155,10 @@ public sealed class BanEngine
                 record.FirstFailedUtc = null;
             }
 
-            bool throttled = record.LastFailedUtc is { } previous && (eventTime - previous).Duration() < policy.MinimumTimeBetweenFailedAttempts &&
-                             record.FailedCount > 0;
-            if (!throttled)
+            bool duplicate = sameAttempt is not null;
+            bool throttled = !duplicate && record.LastFailedUtc is { } previous &&
+                             (eventTime - previous).Duration() < policy.MinimumTimeBetweenFailedAttempts && record.FailedCount > 0;
+            if (!throttled && !duplicate)
             {
                 record.FailedCount += Math.Max(1, evt.Count);
                 record.FirstFailedUtc ??= eventTime;
@@ -163,7 +207,11 @@ public sealed class BanEngine
                 message += " (repeated within the minimum interval, counted once)";
             }
 
-            AddActivity(ActivityType.FailedLogin, ip, country, evt.Source, userName, message, now);
+            if (!duplicate)
+            {
+                var entry = AddActivity(ActivityType.FailedLogin, ip, country, evt.Source, userName, message, now);
+                attempts.Failures.Add(new RecentFailure(eventTime, evt.SourceId, evt.Source, entry, Counted: !throttled));
+            }
 
             if (reason is not null)
             {
@@ -208,7 +256,8 @@ public sealed class BanEngine
             var record = db.GetRecord(ip) ?? new IPRecord { IPAddress = ip, LastActivityUtc = now };
             record.Country ??= countryLookup(ip);
             record.LastActivityUtc = now;
-            args = ApplyBan(record, string.IsNullOrWhiteSpace(reason) ? "Banned manually" : reason.Trim(), duration, manual: true, null, "Manual", null, now);
+            args = ApplyBan(record, string.IsNullOrWhiteSpace(reason) ? "Banned manually" : reason.Trim(), duration, manual: true, null, "Manual", null, now,
+                changeExistingBan: record.IsBanned);
             db.SaveRecord(record);
         }
 
@@ -301,6 +350,7 @@ public sealed class BanEngine
             }
 
             db.ForgetQuietAddresses(now - policy.FailedAttemptWindow, now - policy.RepeatOffenderMemory);
+            PruneRecentAttempts(now);
         }
 
         foreach (var record in expired)
@@ -338,14 +388,63 @@ public sealed class BanEngine
     public void Log(ActivityType type, string message, string? ip = null) =>
         AddActivity(type, ip, ip is null ? null : countryLookup(ip), null, null, message, time.GetUtcNow());
 
-    private void HandleSuccess(LoginEvent evt, string ip, string? userName, string? country, DateTimeOffset now)
+    private void HandleSuccess(LoginEvent evt, string ip, string? userName, string? country, DateTimeOffset eventTime, DateTimeOffset now)
     {
-        AddActivity(ActivityType.SuccessfulLogin, ip, country, evt.Source, userName, "Successful sign-in", now);
-        if (context.Settings.BanPolicy.ClearFailedAttemptsOnSuccessfulLogin)
+        List<long> removed = [];
+        lock (sync)
         {
-            lock (sync)
+            var attempts = GetRecentAttempts(ip, eventTime);
+
+            // One sign-in can produce several success events (an administrator's standard and elevated token).
+            if (attempts.LastSuccessUtc is { } lastSuccess && (eventTime - lastSuccess).Duration() <= DuplicateSuccessWindow &&
+                string.Equals(attempts.LastSuccessUser ?? string.Empty, userName ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(attempts.LastSuccessSource, evt.Source, StringComparison.OrdinalIgnoreCase))
             {
-                var record = db.GetRecord(ip);
+                return;
+            }
+
+            attempts.LastSuccessUtc = eventTime;
+            attempts.LastSuccessUser = userName;
+            attempts.LastSuccessSource = evt.Source;
+
+            var record = db.GetRecord(ip);
+            if (record is not { IsBanned: true })
+            {
+                // Failed steps right before this sign-in were the client negotiating credentials, not an attack.
+                var handshake = attempts.Failures
+                    .Where(f => string.Equals(f.Source, evt.Source, StringComparison.OrdinalIgnoreCase) &&
+                                eventTime - f.Time <= SignInHandshakeWindow && f.Time - eventTime <= TimeSpan.FromSeconds(2))
+                    .ToList();
+                if (handshake.Count > 0)
+                {
+                    foreach (var failure in handshake)
+                    {
+                        attempts.Failures.Remove(failure);
+                        if (failure.Entry.Id > 0)
+                        {
+                            removed.Add(failure.Entry.Id);
+                        }
+                    }
+
+                    int counted = handshake.Count(f => f.Counted);
+                    if (record is not null && counted > 0)
+                    {
+                        record.FailedCount = Math.Max(0, record.FailedCount - counted);
+                        if (record.FailedCount == 0)
+                        {
+                            record.FirstFailedUtc = null;
+                        }
+
+                        db.SaveRecord(record);
+                    }
+
+                    TryDeleteActivity(removed);
+                }
+            }
+
+            if (context.Settings.BanPolicy.ClearFailedAttemptsOnSuccessfulLogin)
+            {
+                record = db.GetRecord(ip);
                 if (record is { IsBanned: false, FailedCount: > 0 })
                 {
                     record.FailedCount = 0;
@@ -356,11 +455,151 @@ public sealed class BanEngine
             }
         }
 
+        if (removed.Count > 0)
+        {
+            try
+            {
+                ActivityRemoved?.Invoke(removed);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Activity listener failed");
+            }
+        }
+
+        AddActivity(ActivityType.SuccessfulLogin, ip, country, evt.Source, userName, "Successful sign-in", now);
         SuccessfulLogin?.Invoke(evt with { UserName = userName });
     }
 
+    private void RecordIgnoredFailure(LoginEvent evt, string ip, string? country, string? userName, DateTimeOffset eventTime, DateTimeOffset now, string message)
+    {
+        lock (sync)
+        {
+            var attempts = GetRecentAttempts(ip, eventTime);
+            if (IsPartOfRecentSignIn(attempts, evt, eventTime))
+            {
+                return;
+            }
+
+            var sameAttempt = FindSameAttempt(attempts, evt, eventTime);
+            if (sameAttempt is not null)
+            {
+                sameAttempt.MergedSources.Add(evt.SourceId);
+                MergeUserName(sameAttempt.Entry, userName);
+                return;
+            }
+
+            var entry = AddActivity(ActivityType.Ignored, ip, country, evt.Source, userName, message, now);
+            attempts.Failures.Add(new RecentFailure(eventTime, evt.SourceId, evt.Source, entry, Counted: false));
+        }
+    }
+
+    private RecentAttempts GetRecentAttempts(string ip, DateTimeOffset eventTime)
+    {
+        if (!recent.TryGetValue(ip, out var attempts))
+        {
+            attempts = new RecentAttempts();
+            recent[ip] = attempts;
+        }
+
+        attempts.Failures.RemoveAll(f => (eventTime - f.Time).Duration() > TimeSpan.FromMinutes(1));
+        return attempts;
+    }
+
+    /// <summary>
+    /// True when a failure happened just before a sign-in from the same address that was already processed
+    /// (logs are delivered separately, so the failed step can arrive after the success).
+    /// </summary>
+    private static bool IsPartOfRecentSignIn(RecentAttempts attempts, LoginEvent evt, DateTimeOffset eventTime) =>
+        attempts.LastSuccessUtc is { } success &&
+        string.Equals(attempts.LastSuccessSource, evt.Source, StringComparison.OrdinalIgnoreCase) &&
+        success - eventTime <= SignInHandshakeWindow && eventTime - success <= TimeSpan.FromSeconds(2);
+
+    /// <summary>A failure from another log, for the same address, that this event is a second report of.</summary>
+    private static RecentFailure? FindSameAttempt(RecentAttempts attempts, LoginEvent evt, DateTimeOffset eventTime)
+    {
+        for (int i = attempts.Failures.Count - 1; i >= 0; i--)
+        {
+            var failure = attempts.Failures[i];
+            if (!string.Equals(failure.SourceId, evt.SourceId, StringComparison.OrdinalIgnoreCase) &&
+                !failure.MergedSources.Contains(evt.SourceId) &&
+                string.Equals(failure.Source, evt.Source, StringComparison.OrdinalIgnoreCase) &&
+                (eventTime - failure.Time).Duration() <= SameAttemptWindow)
+            {
+                return failure;
+            }
+        }
+
+        return null;
+    }
+
+    private void MergeUserName(ActivityEntry entry, string? userName)
+    {
+        if (userName is null || !string.IsNullOrEmpty(entry.UserName) || entry.Id <= 0)
+        {
+            return;
+        }
+
+        entry.UserName = userName;
+        try
+        {
+            db.UpdateActivityUserName(entry.Id, userName);
+            ActivityUpdated?.Invoke(entry);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Unable to update activity entry");
+        }
+    }
+
+    private void TryDeleteActivity(IReadOnlyCollection<long> ids)
+    {
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            db.DeleteActivity(ids);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Unable to remove activity entries");
+        }
+    }
+
+    /// <summary>Forgets correlation state that is too old to matter.</summary>
+    private void PruneRecentAttempts(DateTimeOffset now)
+    {
+        foreach (var (ip, attempts) in recent.ToList())
+        {
+            attempts.Failures.RemoveAll(f => now - f.Time > TimeSpan.FromMinutes(1));
+            if (attempts.Failures.Count == 0 && (attempts.LastSuccessUtc is null || now - attempts.LastSuccessUtc > TimeSpan.FromMinutes(1)))
+            {
+                recent.Remove(ip);
+            }
+        }
+    }
+
+    private sealed class RecentAttempts
+    {
+        public List<RecentFailure> Failures { get; } = [];
+
+        public DateTimeOffset? LastSuccessUtc { get; set; }
+
+        public string? LastSuccessUser { get; set; }
+
+        public string? LastSuccessSource { get; set; }
+    }
+
+    private sealed record RecentFailure(DateTimeOffset Time, string SourceId, string Source, ActivityEntry Entry, bool Counted)
+    {
+        public HashSet<string> MergedSources { get; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
     private BanEventArgs ApplyBan(IPRecord record, string reason, TimeSpan? duration, bool manual, string? userName, string? source,
-        string? logText, DateTimeOffset now)
+        string? logText, DateTimeOffset now, bool changeExistingBan = false)
     {
         var durations = context.Settings.BanPolicy.BanDurations;
         if (durations.Count == 0)
@@ -368,18 +607,26 @@ public sealed class BanEngine
             durations = [TimeSpan.FromDays(1)];
         }
 
-        record.BanLevel = Math.Max(0, record.BanLevel) + 1;
+        if (!changeExistingBan || record.BanLevel < 1)
+        {
+            record.BanLevel = Math.Max(0, record.BanLevel) + 1;
+        }
+
         var effective = duration ?? durations[Math.Min(record.BanLevel - 1, durations.Count - 1)];
         record.IsBanned = true;
         record.BanStartUtc = now;
         record.BanEndUtc = effective <= TimeSpan.Zero ? null : now + effective;
         record.BanReason = reason;
         record.Manual = manual;
-        db.IncrementTotalBans();
+        if (!changeExistingBan)
+        {
+            db.IncrementTotalBans();
+        }
 
-        var level = record.BanLevel > 1 ? string.Create(CultureInfo.InvariantCulture, $" (ban #{record.BanLevel})") : string.Empty;
-        AddActivity(ActivityType.Banned, record.IPAddress, record.Country, source ?? record.Source, userName,
-            $"Banned {(effective <= TimeSpan.Zero ? "permanently" : "for " + TimeFormat.Duration(effective))}{level}: {reason}", now);
+        var level = record.BanLevel > 1 && !changeExistingBan ? string.Create(CultureInfo.InvariantCulture, $" (ban #{record.BanLevel})") : string.Empty;
+        var what = effective <= TimeSpan.Zero ? (changeExistingBan ? "Ban changed to forever" : "Banned forever") : (changeExistingBan ? "Ban changed to " : "Banned for ") +
+            (effective <= TimeSpan.Zero ? string.Empty : TimeFormat.Duration(effective));
+        AddActivity(ActivityType.Banned, record.IPAddress, record.Country, source ?? record.Source, userName, $"{what}{level}: {reason}", now);
         logger.LogInformation("Banned {IP} ({Reason})", record.IPAddress, reason);
         return new BanEventArgs(record, reason, effective <= TimeSpan.Zero ? null : effective, userName, source, logText);
     }
@@ -422,7 +669,7 @@ public sealed class BanEngine
         }
     }
 
-    private void AddActivity(ActivityType type, string? ip, string? country, string? source, string? userName, string message, DateTimeOffset now)
+    private ActivityEntry AddActivity(ActivityType type, string? ip, string? country, string? source, string? userName, string message, DateTimeOffset now)
     {
         var entry = new ActivityEntry
         {
@@ -452,5 +699,7 @@ public sealed class BanEngine
         {
             logger.LogWarning(ex, "Activity listener failed");
         }
+
+        return entry;
     }
 }

@@ -89,6 +89,12 @@ public static class IpcCommands
     /// <summary>Server push: a new <see cref="Data.ActivityEntry"/>.</summary>
     public const string EventActivity = "event.activity";
 
+    /// <summary>Server push: an existing <see cref="Data.ActivityEntry"/> changed (same id).</summary>
+    public const string EventActivityUpdated = "event.activity.updated";
+
+    /// <summary>Server push: <see cref="ActivityRemovedEvent"/>.</summary>
+    public const string EventActivityRemoved = "event.activity.removed";
+
     /// <summary>Server push: a new <see cref="ServiceStatusDto"/>.</summary>
     public const string EventStatus = "event.status";
 

@@ -273,6 +273,30 @@ public sealed class FirewallDatabase : IFilePositionStore, IDisposable
         }
     }
 
+    public void UpdateActivityUserName(long id, string userName)
+    {
+        lock (sync)
+        {
+            using var cmd = Command("UPDATE activity SET user_name = $user WHERE id = $id", ("$user", Truncate(userName, 200)), ("$id", id));
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public int DeleteActivity(IEnumerable<long> ids)
+    {
+        var list = ids.Distinct().ToList();
+        if (list.Count == 0)
+        {
+            return 0;
+        }
+
+        lock (sync)
+        {
+            using var cmd = Command($"DELETE FROM activity WHERE id IN ({string.Join(',', list.Select(i => i.ToString(CultureInfo.InvariantCulture)))})");
+            return cmd.ExecuteNonQuery();
+        }
+    }
+
     public int PruneActivity(DateTimeOffset before)
     {
         lock (sync)

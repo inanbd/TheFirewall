@@ -183,6 +183,12 @@ public sealed class ExportBundle
     public List<IPRecord>? Bans { get; set; }
 }
 
+/// <summary>Activity entries that were removed, e.g. failed steps that turned out to be part of a successful sign-in.</summary>
+public sealed class ActivityRemovedEvent
+{
+    public List<long> Ids { get; set; } = [];
+}
+
 public sealed class ImportBansRequest
 {
     public List<IPRecord> Bans { get; set; } = [];

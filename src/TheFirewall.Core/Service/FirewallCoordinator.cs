@@ -81,6 +81,12 @@ public sealed class FirewallCoordinator : IAsyncDisposable
     /// <summary>Raised for every new activity entry.</summary>
     public event Action<ActivityEntry>? ActivityPublished;
 
+    /// <summary>Raised when an activity entry changed.</summary>
+    public event Action<ActivityEntry>? ActivityChanged;
+
+    /// <summary>Raised when activity entries were removed.</summary>
+    public event Action<IReadOnlyList<long>>? ActivityDeleted;
+
     /// <summary>Raised when the overall status changes (protection toggled, firewall synchronised...).</summary>
     public event Action<ServiceStatusDto>? StatusChanged;
 
@@ -114,6 +120,8 @@ public sealed class FirewallCoordinator : IAsyncDisposable
         feeds.LoadCache(settings.ThreatFeeds);
 
         engine.ActivityAdded += entry => ActivityPublished?.Invoke(entry);
+        engine.ActivityUpdated += entry => ActivityChanged?.Invoke(entry);
+        engine.ActivityRemoved += ids => ActivityDeleted?.Invoke(ids);
         engine.BansChanged += RequestFirewallSync;
         engine.AddressBanned += OnBanned;
         engine.AddressUnbanned += OnUnbanned;

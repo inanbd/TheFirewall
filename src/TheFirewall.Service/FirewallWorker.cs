@@ -67,6 +67,8 @@ internal sealed class FirewallWorker(ILoggerFactory loggerFactory, IHostApplicat
             var serverRef = server;
             coordinator.ActivityPublished += entry => serverRef.Broadcast(IpcCommands.EventActivity, entry);
             coordinator.StatusChanged += status => serverRef.Broadcast(IpcCommands.EventStatus, status);
+            coordinator.ActivityChanged += entry => serverRef.Broadcast(IpcCommands.EventActivityUpdated, entry);
+            coordinator.ActivityDeleted += ids => serverRef.Broadcast(IpcCommands.EventActivityRemoved, new ActivityRemovedEvent { Ids = [.. ids] });
             server.Start();
 
             await Task.Delay(Timeout.Infinite, stoppingToken).ConfigureAwait(false);

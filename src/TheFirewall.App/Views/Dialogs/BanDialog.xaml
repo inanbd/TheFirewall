@@ -19,7 +19,7 @@
       <ComboBoxItem Content="1 day" Tag="1440" />
       <ComboBoxItem Content="1 week" Tag="10080" />
       <ComboBoxItem Content="30 days" Tag="43200" />
-      <ComboBoxItem Content="Permanently" Tag="0" />
+      <ComboBoxItem Content="Forever (until you unban it)" Tag="0" />
     </ComboBox>
 
     <TextBlock Text="Reason (optional)" Style="{StaticResource FieldLabel}" />

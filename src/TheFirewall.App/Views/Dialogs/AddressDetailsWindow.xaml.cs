@@ -43,7 +43,7 @@ public partial class AddressDetailsWindow : Window
             }
             else if (record is { IsBanned: true })
             {
-                title = record.BanEndUtc is { } end ? $"Banned until {end.ToLocalTime():g} ({RelativeTimeConverter.FormatFuture(end)})" : "Banned permanently";
+                title = record.BanEndUtc is { } end ? $"Banned until {end.ToLocalTime():g} ({RelativeTimeConverter.FormatFuture(end)})" : "Banned forever";
                 detail = $"{record.BanReason}. Ban #{record.BanLevel}. User names tried: {record.UserNames ?? "none recorded"}.";
                 StatusBar.Style = (Style)FindResource("ErrorBar");
             }
@@ -69,6 +69,7 @@ public partial class AddressDetailsWindow : Window
             StatusDetail.Text = detail;
             BanButton.IsEnabled = record is not { IsBanned: true } && !result.IsWhitelisted;
             UnbanButton.IsEnabled = record is { IsBanned: true };
+            BanForeverButton.IsEnabled = !result.IsWhitelisted && !(record is { IsBanned: true, BanEndUtc: null });
             WhitelistButton.IsEnabled = !result.IsWhitelisted;
         }
         catch (Exception ex)
@@ -86,6 +87,16 @@ public partial class AddressDetailsWindow : Window
         }
 
         await RunAsync(() => services.Client.BanAsync(new BanRequest { IPAddress = address, Reason = "Banned manually" }));
+    }
+
+    private async void OnBanForever(object sender, RoutedEventArgs e)
+    {
+        if (!Confirm($"Block {address} permanently, until you unban it yourself?"))
+        {
+            return;
+        }
+
+        await RunAsync(() => services.Client.BanAsync(new BanRequest { IPAddress = address, DurationMinutes = 0, Reason = "Banned forever by an administrator" }));
     }
 
     private async void OnUnban(object sender, RoutedEventArgs e) =>

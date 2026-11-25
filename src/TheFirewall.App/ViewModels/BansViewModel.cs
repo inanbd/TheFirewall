@@ -170,6 +170,33 @@ public sealed partial class BansViewModel : PageViewModel
         await RefreshAsync();
     }
 
+    /// <summary>Bans the selected addresses permanently (also turns existing temporary bans into permanent ones).</summary>
+    [RelayCommand]
+    private async Task BanForeverAsync(IList? selection)
+    {
+        var ips = Selected(selection);
+        if (ips.Count == 0)
+        {
+            UiDialogs.Info("Ban forever", "Select one or more addresses first.");
+            return;
+        }
+
+        if (!UiDialogs.Confirm("Ban forever",
+                (ips.Count == 1 ? ips[0] : $"{ips.Count} addresses") + " will be blocked permanently, until you unban them yourself. Continue?"))
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            foreach (var ip in ips)
+            {
+                await Client.BanAsync(new BanRequest { IPAddress = ip, DurationMinutes = 0, Reason = "Banned forever by an administrator" });
+            }
+        }, "Unable to ban");
+        await RefreshAsync();
+    }
+
     [RelayCommand]
     private async Task ClearAllAsync()
     {
@@ -213,7 +240,7 @@ public sealed partial class BansViewModel : PageViewModel
         {
             csv.Append(Csv.Row(r.IPAddress, r.Country, r.Source, r.UserNames, r.FailedCount.ToString(CultureInfo.InvariantCulture),
                 r.BanStartUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
-                r.IsBanned ? (r.BanEndUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "Permanent") : string.Empty,
+                r.IsBanned ? (r.BanEndUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "Forever") : string.Empty,
                 r.BanReason));
         }
 

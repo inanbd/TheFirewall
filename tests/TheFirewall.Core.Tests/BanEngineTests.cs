@@ -30,14 +30,28 @@ public sealed class BanEngineTests : IDisposable
         return engine;
     }
 
-    private LoginEvent Failed(string ip, string? user = "admin", int threshold = 0) => new()
+    private LoginEvent Failed(string ip, string? user = "admin", int threshold = 0, string sourceId = "rdp-logon", double secondsOffset = 0) => new()
     {
         IPAddress = ip,
         UserName = user,
         Source = "RDP",
-        Timestamp = time.GetUtcNow(),
+        SourceId = sourceId,
+        Timestamp = time.GetUtcNow().AddSeconds(secondsOffset),
         FailedAttemptsBeforeBan = threshold,
     };
+
+    private LoginEvent SignedIn(string ip, string? user, double secondsOffset = 0) => new()
+    {
+        IPAddress = ip,
+        UserName = user,
+        Source = "RDP",
+        SourceId = "rdp-success",
+        Kind = LoginEventKind.Successful,
+        Timestamp = time.GetUtcNow().AddSeconds(secondsOffset),
+    };
+
+    private List<ActivityEntry> StoredActivity(ActivityType type) =>
+        db.QueryActivity(new ActivityQuery { Types = [type], Limit = 100 });
 
     [Fact]
     public void Bans_after_threshold()
@@ -215,10 +229,86 @@ public sealed class BanEngineTests : IDisposable
         settings.BanPolicy.ClearFailedAttemptsOnSuccessfulLogin = true;
         var engine = CreateEngine();
         engine.Process(Failed("198.51.100.80"));
-        engine.Process(Failed("198.51.100.80"));
-        engine.Process(Failed("198.51.100.80") with { Kind = LoginEventKind.Successful });
+        engine.Process(Failed("198.51.100.80", secondsOffset: 2));
+        time.Advance(TimeSpan.FromMinutes(1)); // a real retry, not part of the same sign-in
+        engine.Process(SignedIn("198.51.100.80", "admin"));
         Assert.Equal(0, db.GetRecord("198.51.100.80")!.FailedCount);
         Assert.Contains(activity, a => a.Type == ActivityType.SuccessfulLogin);
+        Assert.Equal(2, StoredActivity(ActivityType.FailedLogin).Count); // the earlier typos stay visible
+    }
+
+    [Fact]
+    public void One_attempt_reported_by_two_logs_counts_once_and_shows_one_row()
+    {
+        var engine = CreateEngine();
+        var updated = new List<ActivityEntry>();
+        engine.ActivityUpdated += updated.Add;
+
+        engine.Process(Failed("198.51.100.81", user: null, sourceId: "rdp-rdpcorets"));            // RdpCoreTS 140, no user name
+        engine.Process(Failed("198.51.100.81", user: "Administrator", sourceId: "rdp-logon", secondsOffset: 2)); // Security 4625
+
+        Assert.Equal(1, db.GetRecord("198.51.100.81")!.FailedCount);
+        var row = Assert.Single(StoredActivity(ActivityType.FailedLogin));
+        Assert.Equal("Administrator", row.UserName);
+        Assert.Equal(row.Id, Assert.Single(updated).Id);
+
+        // The next attempt is a new one again (and is paired with its own second report).
+        engine.Process(Failed("198.51.100.81", user: "Administrator", sourceId: "rdp-logon", secondsOffset: 3));
+        engine.Process(Failed("198.51.100.81", user: null, sourceId: "rdp-rdpcorets", secondsOffset: 3.5));
+        Assert.Equal(2, db.GetRecord("198.51.100.81")!.FailedCount);
+        Assert.Equal(2, StoredActivity(ActivityType.FailedLogin).Count);
+    }
+
+    [Fact]
+    public void Failed_steps_right_before_a_sign_in_are_part_of_it()
+    {
+        var engine = CreateEngine();
+        var removed = new List<long>();
+        engine.ActivityRemoved += ids => removed.AddRange(ids);
+
+        // Network Level Authentication: a failed step (reported twice) and then the successful sign-in.
+        engine.Process(Failed("198.51.100.82", user: null, sourceId: "rdp-rdpcorets"));
+        engine.Process(Failed("198.51.100.82", user: "Administrator", sourceId: "rdp-logon", secondsOffset: 0.5));
+        engine.Process(SignedIn("198.51.100.82", "Administrator", secondsOffset: 1));
+        // Administrators get a second success event for the elevated token.
+        engine.Process(SignedIn("198.51.100.82", "Administrator", secondsOffset: 1.2));
+
+        Assert.Equal(0, db.GetRecord("198.51.100.82")!.FailedCount);
+        Assert.Empty(StoredActivity(ActivityType.FailedLogin));
+        Assert.Single(StoredActivity(ActivityType.SuccessfulLogin));
+        Assert.Single(removed);
+    }
+
+    [Fact]
+    public void Failed_step_reported_after_the_sign_in_is_ignored()
+    {
+        var engine = CreateEngine();
+        engine.Process(Failed("198.51.100.84", user: "Administrator", sourceId: "rdp-logon"));
+        engine.Process(SignedIn("198.51.100.84", "Administrator", secondsOffset: 1));
+        engine.Process(Failed("198.51.100.84", user: null, sourceId: "rdp-rdpcorets", secondsOffset: 0.2)); // arrives late
+
+        Assert.Equal(0, db.GetRecord("198.51.100.84")!.FailedCount);
+        Assert.Empty(StoredActivity(ActivityType.FailedLogin));
+
+        // A genuine failure a minute later is counted again.
+        time.Advance(TimeSpan.FromMinutes(1));
+        engine.Process(Failed("198.51.100.84", user: "Administrator", sourceId: "rdp-logon"));
+        Assert.Equal(1, db.GetRecord("198.51.100.84")!.FailedCount);
+    }
+
+    [Fact]
+    public void Ban_forever_turns_an_existing_ban_permanent_without_escalating()
+    {
+        var engine = CreateEngine();
+        engine.BanManually("198.51.100.83", null, "test");
+        engine.BanManually("198.51.100.83", TimeSpan.Zero, "Banned forever by an administrator");
+
+        var record = db.GetRecord("198.51.100.83")!;
+        Assert.True(record.IsBanned);
+        Assert.Null(record.BanEndUtc);
+        Assert.Equal(1, record.BanLevel);
+        Assert.Equal(1, db.GetDashboardStats(time.Now).TotalBansAllTime);
+        Assert.Contains(activity, a => a.Type == ActivityType.Banned && a.Message!.StartsWith("Ban changed to forever", StringComparison.Ordinal));
     }
 
     [Fact]

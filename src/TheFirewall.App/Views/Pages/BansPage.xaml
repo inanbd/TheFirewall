@@ -82,6 +82,13 @@
                 <TextBlock Text="Unban and never ban again" Margin="8,0,0,0" />
               </StackPanel>
             </Button>
+            <Button Margin="8,0,0,0" Command="{Binding BanForeverCommand}" CommandParameter="{Binding SelectedItems, ElementName=BannedGrid}"
+                    ToolTip="Keep the selected addresses blocked permanently instead of until their ban ends">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xEA18;" Style="{StaticResource Glyph}" FontSize="14" />
+                <TextBlock Text="Ban forever" Margin="8,0,0,0" />
+              </StackPanel>
+            </Button>
             <Button Margin="8,0,0,0" Style="{StaticResource SubtleButton}" Command="{Binding ClearAllCommand}" Foreground="{DynamicResource SystemFillColorCriticalBrush}">
               <TextBlock Text="Unban everyone…" />
             </Button>
@@ -143,6 +150,12 @@
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="&#xEA18;" Style="{StaticResource Glyph}" FontSize="14" />
                 <TextBlock Text="Ban now" Margin="8,0,0,0" />
+              </StackPanel>
+            </Button>
+            <Button Margin="8,0,0,0" Command="{Binding BanForeverCommand}" CommandParameter="{Binding SelectedItems, ElementName=WatchedGrid}">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xEA18;" Style="{StaticResource Glyph}" FontSize="14" />
+                <TextBlock Text="Ban forever" Margin="8,0,0,0" />
               </StackPanel>
             </Button>
             <Button Margin="8,0,0,0" Command="{Binding UnbanAndWhitelistCommand}" CommandParameter="{Binding SelectedItems, ElementName=WatchedGrid}">

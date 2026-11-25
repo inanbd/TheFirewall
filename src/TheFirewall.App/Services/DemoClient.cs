@@ -55,6 +55,19 @@ public sealed class DemoClient : IFirewallClient
 
     public event EventHandler<ServiceStatusDto>? StatusReceived;
 
+    // The simulation never edits or removes entries.
+    public event EventHandler<ActivityEntry>? ActivityUpdated
+    {
+        add { }
+        remove { }
+    }
+
+    public event EventHandler<IReadOnlyList<long>>? ActivityRemoved
+    {
+        add { }
+        remove { }
+    }
+
     public void Start()
     {
         LastStatus = BuildStatus();

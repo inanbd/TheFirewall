@@ -22,6 +22,8 @@ public sealed partial class DashboardViewModel : PageViewModel
         refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
         refreshTimer.Tick += (_, _) => _ = RefreshAsync();
         Client.ActivityReceived += OnActivity;
+        Client.ActivityUpdated += (_, entry) => ActivityListUpdates.Replace(Recent, entry);
+        Client.ActivityRemoved += (_, ids) => ActivityListUpdates.Remove(Recent, ids);
         Client.StatusReceived += (_, status) => ApplyStatus(status);
         Client.ConnectionChanged += (_, _) => UpdateHero();
         ServiceBootstrapper.BusyChanged += () => System.Windows.Application.Current?.Dispatcher.InvokeAsync(UpdateHero);

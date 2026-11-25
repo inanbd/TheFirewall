@@ -28,6 +28,8 @@ public sealed partial class ActivityViewModel : PageViewModel
     public ActivityViewModel(AppServices services) : base(services)
     {
         Client.ActivityReceived += OnActivity;
+        Client.ActivityUpdated += (_, entry) => ActivityListUpdates.Replace(Items, entry);
+        Client.ActivityRemoved += (_, ids) => ActivityListUpdates.Remove(Items, ids);
     }
 
     public override string Key => "activity";
@@ -194,6 +196,19 @@ public sealed partial class ActivityViewModel : PageViewModel
     }
 
     [RelayCommand]
+    private async Task BanForeverAsync(ActivityEntry? entry)
+    {
+        var ip = (entry ?? Selected)?.IPAddress;
+        if (string.IsNullOrEmpty(ip) || !UiDialogs.Confirm("Ban forever", $"Block {ip} permanently, until you unban it yourself?"))
+        {
+            return;
+        }
+
+        await RunAsync(() => Client.BanAsync(new BanRequest { IPAddress = ip, DurationMinutes = 0, Reason = "Banned forever from the activity feed" }),
+            "Unable to ban the address");
+    }
+
+    [RelayCommand]
     private async Task WhitelistAsync(ActivityEntry? entry)
     {
         var ip = (entry ?? Selected)?.IPAddress;
@@ -230,6 +245,33 @@ public sealed partial class ActivityViewModel : PageViewModel
         }
 
         File.WriteAllText(dialog.FileName, csv.ToString(), Encoding.UTF8);
+    }
+}
+
+internal static class ActivityListUpdates
+{
+    public static void Replace(System.Collections.ObjectModel.ObservableCollection<ActivityEntry> items, ActivityEntry entry)
+    {
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (items[i].Id == entry.Id)
+            {
+                items[i] = entry;
+                return;
+            }
+        }
+    }
+
+    public static void Remove(System.Collections.ObjectModel.ObservableCollection<ActivityEntry> items, IReadOnlyList<long> ids)
+    {
+        var set = ids.ToHashSet();
+        for (int i = items.Count - 1; i >= 0; i--)
+        {
+            if (set.Contains(items[i].Id))
+            {
+                items.RemoveAt(i);
+            }
+        }
     }
 }
 

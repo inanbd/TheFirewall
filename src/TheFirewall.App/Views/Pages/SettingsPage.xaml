@@ -25,7 +25,7 @@
                  IsEnabled="{Binding Permanent, Converter={StaticResource InverseBoolean}}" />
         <ComboBox ItemsSource="{x:Static vm:DurationField.Units}" SelectedItem="{Binding Unit}" Width="110" Margin="6,0,0,0"
                   IsEnabled="{Binding Permanent, Converter={StaticResource InverseBoolean}}" />
-        <CheckBox Content="Permanent" IsChecked="{Binding Permanent}" Margin="12,0,0,0" VerticalAlignment="Center"
+        <CheckBox Content="Forever" IsChecked="{Binding Permanent}" Margin="12,0,0,0" VerticalAlignment="Center"
                   Visibility="{Binding AllowPermanent, Converter={StaticResource BoolToVisibility}}" />
       </StackPanel>
     </DataTemplate>

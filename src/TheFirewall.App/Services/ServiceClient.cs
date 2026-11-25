@@ -31,6 +31,10 @@ public sealed class ServiceClient(Dispatcher dispatcher) : IFirewallClient
 
     public event EventHandler<ServiceStatusDto>? StatusReceived;
 
+    public event EventHandler<ActivityEntry>? ActivityUpdated;
+
+    public event EventHandler<IReadOnlyList<long>>? ActivityRemoved;
+
     public void Start() => loop ??= Task.Run(() => ConnectionLoopAsync(stop.Token));
 
     public async Task StopAsync()
@@ -138,6 +142,22 @@ public sealed class ServiceClient(Dispatcher dispatcher) : IFirewallClient
                 if (entry is not null)
                 {
                     dispatcher.InvokeAsync(() => ActivityReceived?.Invoke(this, entry));
+                }
+            }
+            else if (type == IpcCommands.EventActivityUpdated)
+            {
+                var entry = payload.Deserialize<ActivityEntry>(IpcJson.Options);
+                if (entry is not null)
+                {
+                    dispatcher.InvokeAsync(() => ActivityUpdated?.Invoke(this, entry));
+                }
+            }
+            else if (type == IpcCommands.EventActivityRemoved)
+            {
+                var removed = payload.Deserialize<ActivityRemovedEvent>(IpcJson.Options);
+                if (removed is { Ids.Count: > 0 })
+                {
+                    dispatcher.InvokeAsync(() => ActivityRemoved?.Invoke(this, removed.Ids));
                 }
             }
             else if (type == IpcCommands.EventStatus)

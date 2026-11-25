@@ -152,11 +152,11 @@ public sealed class LocalTimeConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
-/// <summary>Formats a ban end time: "Permanent", "in 3 h"...</summary>
+/// <summary>Formats a ban end time: "Forever", "in 3 h"...</summary>
 public sealed class ExpiryConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is DateTimeOffset end ? RelativeTimeConverter.FormatFuture(end) : "Permanent";
+        value is DateTimeOffset end ? RelativeTimeConverter.FormatFuture(end) : "Forever";
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
