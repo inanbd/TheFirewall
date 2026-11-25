@@ -123,7 +123,7 @@
                   <DataGridTemplateColumn Header="Address" Width="150" MinWidth="150" SortMemberPath="IPAddress" CellTemplate="{StaticResource AddressCell}" />
                   <DataGridTemplateColumn Header="Country" Width="150" MinWidth="150" SortMemberPath="Country" CellTemplate="{StaticResource CountryCell}" />
                   <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="90" MinWidth="90" />
-                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User names tried" Binding="{Binding UserNames}" Width="120" MinWidth="120" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User names tried" Binding="{Binding UserNames}" Width="135" MinWidth="135" />
                   <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Tries" Binding="{Binding FailedCount}" Width="60" MinWidth="60" />
                   <DataGridTemplateColumn Header="Banned" Width="90" MinWidth="90" SortMemberPath="BanStartUtc">
                     <DataGridTemplateColumn.CellTemplate>
