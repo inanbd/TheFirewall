@@ -1,6 +1,7 @@
 using System.Text.Json;
 using TheFirewall.Core.Actions;
 using TheFirewall.Core.Configuration;
+using TheFirewall.Core.Data;
 using TheFirewall.Core.Engine;
 using TheFirewall.Core.Feeds;
 using TheFirewall.Core.Geo;
@@ -187,6 +188,112 @@ public class CountryValidationTests
         var errors = SettingsStore.Validate(settings);
         Assert.DoesNotContain(errors, e => e.Contains("at least one country", StringComparison.Ordinal));
         Assert.Contains(errors, e => e.Contains("'XX'", StringComparison.Ordinal));
+    }
+}
+
+public class CountryBlockChangeTests
+{
+    private static CountryBlockingSettings Settings(CountryBlockingMode mode, params string[] countries) =>
+        new() { Mode = mode, Countries = [.. countries] };
+
+    [Fact]
+    public void Turning_blocking_on_blocks_only_the_requested_country()
+    {
+        // Countries ticked while blocking was off must not start being blocked as a side effect.
+        var plan = CountryBlockChange.Plan(Settings(CountryBlockingMode.Off, "FR", "IT"), ["cn"]);
+        Assert.Equal(CountryBlockOutcome.Block, plan.Outcome);
+        Assert.Equal(CountryBlockingMode.BlockSelected, plan.Mode);
+        Assert.Equal(["CN"], plan.Countries);
+        Assert.Equal(["CN"], plan.Codes);
+    }
+
+    [Fact]
+    public void Block_list_gets_the_new_countries_added()
+    {
+        var plan = CountryBlockChange.Plan(Settings(CountryBlockingMode.BlockSelected, "RU"), ["CN", "RU", null, "", "XX", "CN"]);
+        Assert.Equal(CountryBlockOutcome.Block, plan.Outcome);
+        Assert.Equal(["CN"], plan.Codes);
+        Assert.Equal(["RU", "CN"], plan.Countries);
+    }
+
+    [Fact]
+    public void Already_blocked_country_is_reported()
+    {
+        Assert.Equal(CountryBlockOutcome.AlreadyBlocked, CountryBlockChange.Plan(Settings(CountryBlockingMode.BlockSelected, "ru"), ["RU"]).Outcome);
+        Assert.Equal(CountryBlockOutcome.AlreadyBlocked, CountryBlockChange.Plan(Settings(CountryBlockingMode.AllowOnlySelected, "DE"), ["CN"]).Outcome);
+    }
+
+    [Fact]
+    public void Allow_only_mode_removes_the_country_from_the_allowed_list()
+    {
+        var plan = CountryBlockChange.Plan(Settings(CountryBlockingMode.AllowOnlySelected, "DE", "FR", "US"), ["FR"]);
+        Assert.Equal(CountryBlockOutcome.Block, plan.Outcome);
+        Assert.Equal(CountryBlockingMode.AllowOnlySelected, plan.Mode);
+        Assert.Equal(["DE", "US"], plan.Countries);
+    }
+
+    [Fact]
+    public void Removing_the_last_allowed_country_is_refused()
+    {
+        var plan = CountryBlockChange.Plan(Settings(CountryBlockingMode.AllowOnlySelected, "DE"), ["DE"]);
+        Assert.Equal(CountryBlockOutcome.WouldBlockEverything, plan.Outcome);
+        Assert.Equal(["DE"], plan.Countries);
+    }
+
+    [Fact]
+    public void Unknown_country_changes_nothing()
+    {
+        var plan = CountryBlockChange.Plan(Settings(CountryBlockingMode.Off), [null, "", "ZZ"]);
+        Assert.Equal(CountryBlockOutcome.UnknownCountry, plan.Outcome);
+        Assert.Equal(CountryBlockingMode.Off, plan.Mode);
+    }
+
+    [Fact]
+    public void Planned_settings_pass_validation()
+    {
+        var settings = new FirewallSettings();
+        var plan = CountryBlockChange.Plan(settings.CountryBlocking, ["CN", "KP"]);
+        settings.CountryBlocking.Mode = plan.Mode;
+        settings.CountryBlocking.Countries = [.. plan.Countries];
+        Assert.Empty(SettingsStore.Validate(settings));
+    }
+}
+
+public sealed class CountrySearchTests : IDisposable
+{
+    private readonly TempDirectory dir = new();
+    private readonly FirewallDatabase db;
+
+    public CountrySearchTests() => db = new FirewallDatabase(dir.File("search.db"));
+
+    public void Dispose()
+    {
+        db.Dispose();
+        dir.Dispose();
+    }
+
+    [Fact]
+    public void Matches_codes_and_names()
+    {
+        Assert.True(Countries.Matches("DE", "de"));
+        Assert.True(Countries.Matches("DE", Countries.GetName("DE")[..4]));
+        Assert.False(Countries.Matches("DE", "e"));
+        Assert.False(Countries.Matches(null, "Germany"));
+    }
+
+    [Fact]
+    public void Activity_search_finds_rows_by_country_name()
+    {
+        db.AddActivity(new ActivityEntry { TimeUtc = DateTimeOffset.UtcNow, Type = ActivityType.FailedLogin, IPAddress = "203.0.113.5", Country = "CN" });
+        db.AddActivity(new ActivityEntry { TimeUtc = DateTimeOffset.UtcNow, Type = ActivityType.FailedLogin, IPAddress = "198.51.100.7", Country = "DE" });
+
+        var byName = db.QueryActivity(new ActivityQuery { Search = Countries.GetName("CN"), Limit = 10 });
+        Assert.Equal(["203.0.113.5"], byName.Select(a => a.IPAddress));
+
+        var byCode = db.QueryActivity(new ActivityQuery { Search = "de", Limit = 10 });
+        Assert.Equal(["198.51.100.7"], byCode.Select(a => a.IPAddress));
+
+        Assert.Equal(2, db.QueryActivity(new ActivityQuery { Search = "1", Limit = 10 }).Count);
     }
 }
 

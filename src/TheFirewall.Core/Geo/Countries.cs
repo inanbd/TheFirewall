@@ -32,6 +32,31 @@ public static class Countries
         return match?.Name ?? code.ToUpperInvariant();
     }
 
+    /// <summary>True when the search text is the country's code or (three letters or more) part of its name.</summary>
+    public static bool Matches(string? code, string? search)
+    {
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(search))
+        {
+            return false;
+        }
+
+        search = search.Trim();
+        return code.Equals(search, StringComparison.OrdinalIgnoreCase) ||
+               (search.Length >= 3 && GetName(code).Contains(search, StringComparison.CurrentCultureIgnoreCase));
+    }
+
+    /// <summary>Codes of the countries whose name contains the search text (three letters or more).</summary>
+    public static IReadOnlyList<string> FindByName(string? search)
+    {
+        if (string.IsNullOrWhiteSpace(search) || search.Trim().Length < 3)
+        {
+            return [];
+        }
+
+        search = search.Trim();
+        return All.Where(c => c.Name.Contains(search, StringComparison.CurrentCultureIgnoreCase)).Select(c => c.Code).ToList();
+    }
+
     public static bool IsValidCode(string? code) =>
         code is { Length: 2 } && All.Any(c => string.Equals(c.Code, code, StringComparison.OrdinalIgnoreCase));
 

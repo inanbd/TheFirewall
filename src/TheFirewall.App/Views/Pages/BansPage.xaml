@@ -7,14 +7,27 @@
              mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:BansViewModel}">
   <UserControl.Resources>
     <DataTemplate x:Key="AddressCell">
-      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" ToolTip="{Binding Country, Converter={StaticResource CountryName}}">
-        <Border Style="{StaticResource CountryBadge}" Visibility="{Binding Country, Converter={StaticResource NullToVisibility}}">
-          <TextBlock Text="{Binding Country}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
-                     Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-        </Border>
-        <TextBlock Text="{Binding IPAddress}" Style="{StaticResource Mono}" VerticalAlignment="Center" />
-      </StackPanel>
+      <TextBlock Text="{Binding IPAddress}" Style="{StaticResource Mono}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding IPAddress}" />
     </DataTemplate>
+
+    <!-- Right-click menu for both grids; the commands take the grid's selected rows. -->
+    <ContextMenu x:Key="RowMenu" x:Shared="False" DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+      <MenuItem Header="Show details" Command="{Binding ShowDetailsCommand}"
+                CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+      <Separator />
+      <MenuItem Header="Ban forever" Command="{Binding BanForeverCommand}"
+                CommandParameter="{Binding PlacementTarget.SelectedItems, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+      <MenuItem Header="Never ban (whitelist)" Command="{Binding UnbanAndWhitelistCommand}"
+                CommandParameter="{Binding PlacementTarget.SelectedItems, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+      <Separator />
+      <MenuItem Header="{Binding PlacementTarget.SelectedItem.Country, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource CountryName}, ConverterParameter='Block every address from {0}'}"
+                Command="{Binding BlockCountryCommand}"
+                CommandParameter="{Binding PlacementTarget.SelectedItems, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+        <MenuItem.Icon>
+          <TextBlock Text="&#xE733;" Style="{StaticResource Glyph}" FontSize="14" Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+        </MenuItem.Icon>
+      </MenuItem>
+    </ContextMenu>
   </UserControl.Resources>
 
   <Grid Margin="32,16,32,16">
@@ -89,20 +102,28 @@
                 <TextBlock Text="Ban forever" Margin="8,0,0,0" />
               </StackPanel>
             </Button>
+            <Button Margin="8,0,0,0" Command="{Binding BlockCountryCommand}" CommandParameter="{Binding SelectedItems, ElementName=BannedGrid}"
+                    ToolTip="Block every address from the countries of the selected addresses, not only the ones that tried to sign in">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE733;" Style="{StaticResource Glyph}" FontSize="14" Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                <TextBlock Text="Block country" Margin="8,0,0,0" />
+              </StackPanel>
+            </Button>
             <Button Margin="8,0,0,0" Style="{StaticResource SubtleButton}" Command="{Binding ClearAllCommand}" Foreground="{DynamicResource SystemFillColorCriticalBrush}">
               <TextBlock Text="Unban everyone…" />
             </Button>
           </StackPanel>
           <Border Grid.Row="1" Style="{StaticResource Card}" Padding="4" Margin="0">
             <Grid>
-              <DataGrid x:Name="BannedGrid" Style="{StaticResource ListGrid}" ItemsSource="{Binding BannedView}">
+              <DataGrid x:Name="BannedGrid" Style="{StaticResource ListGrid}" ItemsSource="{Binding BannedView}" ContextMenu="{StaticResource RowMenu}">
                 <DataGrid.InputBindings>
                   <MouseBinding Gesture="LeftDoubleClick" Command="{Binding ShowDetailsCommand}" CommandParameter="{Binding SelectedItem, ElementName=BannedGrid}" />
                 </DataGrid.InputBindings>
                 <DataGrid.Columns>
-                  <DataGridTemplateColumn Header="Address" Width="205" MinWidth="205" SortMemberPath="IPAddress" CellTemplate="{StaticResource AddressCell}" />
+                  <DataGridTemplateColumn Header="Address" Width="170" MinWidth="170" SortMemberPath="IPAddress" CellTemplate="{StaticResource AddressCell}" />
+                  <DataGridTemplateColumn Header="Country" Width="165" MinWidth="165" SortMemberPath="Country" CellTemplate="{StaticResource CountryCell}" />
                   <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="95" MinWidth="95" />
-                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User names tried" Binding="{Binding UserNames}" Width="145" MinWidth="145" />
+                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User names tried" Binding="{Binding UserNames}" Width="130" MinWidth="130" />
                   <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Tries" Binding="{Binding FailedCount}" Width="70" MinWidth="70" />
                   <DataGridTemplateColumn Header="Banned" Width="95" MinWidth="95" SortMemberPath="BanStartUtc">
                     <DataGridTemplateColumn.CellTemplate>
@@ -164,16 +185,23 @@
                 <TextBlock Text="Never ban (whitelist)" Margin="8,0,0,0" />
               </StackPanel>
             </Button>
+            <Button Margin="8,0,0,0" Command="{Binding BlockCountryCommand}" CommandParameter="{Binding SelectedItems, ElementName=WatchedGrid}"
+                    ToolTip="Block every address from the countries of the selected addresses, not only the ones that tried to sign in">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE733;" Style="{StaticResource Glyph}" FontSize="14" Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                <TextBlock Text="Block country" Margin="8,0,0,0" />
+              </StackPanel>
+            </Button>
           </StackPanel>
           <Border Grid.Row="1" Style="{StaticResource Card}" Padding="4" Margin="0">
             <Grid>
-              <DataGrid x:Name="WatchedGrid" Style="{StaticResource ListGrid}" ItemsSource="{Binding WatchedView}">
+              <DataGrid x:Name="WatchedGrid" Style="{StaticResource ListGrid}" ItemsSource="{Binding WatchedView}" ContextMenu="{StaticResource RowMenu}">
                 <DataGrid.InputBindings>
                   <MouseBinding Gesture="LeftDoubleClick" Command="{Binding ShowDetailsCommand}" CommandParameter="{Binding SelectedItem, ElementName=WatchedGrid}" />
                 </DataGrid.InputBindings>
                 <DataGrid.Columns>
-                  <DataGridTemplateColumn Header="Address" Width="205" MinWidth="205" SortMemberPath="IPAddress" CellTemplate="{StaticResource AddressCell}" />
-                  <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Country" Binding="{Binding Country, Converter={StaticResource CountryName}}" Width="120" MinWidth="120" />
+                  <DataGridTemplateColumn Header="Address" Width="170" MinWidth="170" SortMemberPath="IPAddress" CellTemplate="{StaticResource AddressCell}" />
+                  <DataGridTemplateColumn Header="Country" Width="165" MinWidth="165" SortMemberPath="Country" CellTemplate="{StaticResource CountryCell}" />
                   <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Source" Binding="{Binding Source}" Width="95" MinWidth="95" />
                   <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="User names tried" Binding="{Binding UserNames}" Width="*" />
                   <DataGridTextColumn ElementStyle="{StaticResource CellText}" Header="Failed attempts" Binding="{Binding FailedCount}" Width="110" MinWidth="110" />

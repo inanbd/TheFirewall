@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:TheFirewall.App.ViewModels"
+             xmlns:ctl="clr-namespace:TheFirewall.App.Controls"
              mc:Ignorable="d" d:DataContext="{d:DesignInstance vm:CountriesViewModel}">
   <Grid Margin="32,16,32,16">
     <Grid.RowDefinitions>
@@ -93,10 +94,7 @@
                   <TextBlock Text="{Binding RangeCount, StringFormat={}{0:N0} address ranges}" />
                 </CheckBox.ToolTip>
                 <StackPanel Orientation="Horizontal">
-                  <Border Style="{StaticResource CountryBadge}">
-                    <TextBlock Text="{Binding Code}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
-                  </Border>
+                  <ctl:CountryFlag Code="{Binding Code}" Margin="0,0,8,0" />
                   <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="150" />
                 </StackPanel>
               </CheckBox>

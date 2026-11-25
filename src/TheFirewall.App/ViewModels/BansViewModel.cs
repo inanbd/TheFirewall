@@ -67,8 +67,7 @@ public sealed partial class BansViewModel : PageViewModel
                (r.Source?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
                (r.UserNames?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
                (r.BanReason?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
-               (r.Country is not null && (r.Country.Equals(s, StringComparison.OrdinalIgnoreCase) ||
-                                          Countries.GetName(r.Country).Contains(s, StringComparison.OrdinalIgnoreCase)));
+               Countries.Matches(r.Country, s);
     }
 
     protected override async Task LoadAsync()
@@ -195,6 +194,25 @@ public sealed partial class BansViewModel : PageViewModel
             }
         }, "Unable to ban");
         await RefreshAsync();
+    }
+
+    /// <summary>Blocks every address from the countries of the given row, or of the selected rows.</summary>
+    [RelayCommand]
+    private async Task BlockCountryAsync(object? parameter)
+    {
+        List<string?> codes = parameter switch
+        {
+            IPRecord record => [record.Country],
+            IList selection => selection.OfType<IPRecord>().Select(r => r.Country).ToList(),
+            _ => [],
+        };
+        if (codes.Count == 0)
+        {
+            UiDialogs.Info("Block country", "Select one or more addresses first.");
+            return;
+        }
+
+        await CountryBlocker.BlockAsync(Services, codes);
     }
 
     [RelayCommand]

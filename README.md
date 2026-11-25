@@ -31,7 +31,8 @@ easy-to-use control panel and a tray icon that shows at a glance whether you are
 - **Custom firewall rules** – allow or block ports, protocols, addresses and programs, inbound or outbound.
 - **Whitelist and blacklist** – addresses, CIDR blocks, ranges and wildcards; local networks are never banned by default.
 - **Country blocking** – block selected countries, or allow only the countries you work from, on all or specific ports
-  (free DB-IP database, updated monthly).
+  (free DB-IP database, updated monthly). Every address shows its country and flag, and a whole country can be
+  blocked straight from the activity feed or the ban list.
 - **Threat feeds** – optionally pre-block known attackers from public lists (Emerging Threats, Spamhaus DROP,
   blocklist.de, CINS Army, IPsum) or any URL.
 - **User name rules** – instant-ban names such as `admin`/`root`, more forgiving limits for your real user names.

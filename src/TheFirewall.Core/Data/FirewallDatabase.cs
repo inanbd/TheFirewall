@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
+using TheFirewall.Core.Geo;
 using TheFirewall.Core.Monitoring;
 
 namespace TheFirewall.Core.Data;
@@ -242,8 +243,16 @@ public sealed class FirewallDatabase : IFilePositionStore, IDisposable
 
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
-            sql.Append(" AND (ip LIKE $search OR source LIKE $search OR user_name LIKE $search OR message LIKE $search OR country LIKE $search)");
+            sql.Append(" AND (ip LIKE $search OR source LIKE $search OR user_name LIKE $search OR message LIKE $search OR country LIKE $search");
             parameters.Add(("$search", "%" + query.Search.Trim() + "%"));
+            var countries = Countries.FindByName(query.Search);
+            for (int i = 0; i < countries.Count; i++)
+            {
+                sql.Append(i == 0 ? " OR country IN (" : ", ").Append("$country").Append(i);
+                parameters.Add(("$country" + i, countries[i]));
+            }
+
+            sql.Append(countries.Count > 0 ? "))" : ")");
         }
 
         sql.Append(" ORDER BY id DESC LIMIT $limit");

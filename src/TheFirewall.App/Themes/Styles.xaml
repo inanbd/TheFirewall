@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:conv="clr-namespace:TheFirewall.App.Converters">
+                    xmlns:conv="clr-namespace:TheFirewall.App.Converters"
+                    xmlns:ctl="clr-namespace:TheFirewall.App.Controls">
 
   <!-- ===================================================================== Converters -->
   <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
@@ -16,6 +17,7 @@
   <conv:LocalTimeConverter x:Key="LocalTime" />
   <conv:ExpiryConverter x:Key="Expiry" />
   <conv:CountryNameConverter x:Key="CountryName" />
+  <conv:CountryFlagConverter x:Key="CountryFlag" />
   <conv:ActivityTypeToBrushConverter x:Key="ActivityBrush" />
   <conv:ActivityTypeToGlyphConverter x:Key="ActivityGlyph" />
   <conv:ActivityTypeToTextConverter x:Key="ActivityText" />
@@ -103,19 +105,6 @@
     <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
     <Setter Property="HorizontalAlignment" Value="Left" />
     <Setter Property="VerticalAlignment" Value="Center" />
-  </Style>
-
-  <!-- Two-letter country badge -->
-  <Style x:Key="CountryBadge" TargetType="Border">
-    <Setter Property="CornerRadius" Value="3" />
-    <Setter Property="Padding" Value="4,0" />
-    <Setter Property="MinWidth" Value="26" />
-    <Setter Property="Height" Value="18" />
-    <Setter Property="Margin" Value="0,0,8,0" />
-    <Setter Property="VerticalAlignment" Value="Center" />
-    <Setter Property="Background" Value="{DynamicResource SubtleFillColorTertiaryBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
-    <Setter Property="BorderThickness" Value="1" />
   </Style>
 
   <!-- InfoBar-like banners -->
@@ -282,5 +271,51 @@
     <Setter Property="Margin" Value="0,12,0,4" />
     <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
   </Style>
+
+  <!-- ===================================================================== Country cell -->
+  <!-- Small icon button inside a data grid cell. -->
+  <Style x:Key="CellActionButton" TargetType="Button" BasedOn="{StaticResource SubtleButton}">
+    <Setter Property="Padding" Value="6,3" />
+    <Setter Property="Margin" Value="4,0,0,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{DynamicResource SystemFillColorCriticalBrush}" />
+  </Style>
+
+  <!--
+    Flag and country name for data grid rows that have a Country property. Hovering or selecting a row shows a button that
+    blocks the whole country; the grid's DataContext must have a BlockCountryCommand that accepts the row item.
+  -->
+  <DataTemplate x:Key="CountryCell">
+    <Grid Background="Transparent" ToolTip="{Binding Country, Converter={StaticResource CountryName}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <ctl:CountryFlag Code="{Binding Country}" />
+      <TextBlock Grid.Column="1" Text="{Binding Country, Converter={StaticResource CountryName}}" Margin="8,0,0,0" VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+      <Button x:Name="BlockButton" Grid.Column="2" Style="{StaticResource CellActionButton}" Visibility="Collapsed"
+              Command="{Binding DataContext.BlockCountryCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}" CommandParameter="{Binding}"
+              ToolTip="{Binding Country, Converter={StaticResource CountryName}, ConverterParameter='Block every address from {0}'}"
+              AutomationProperties.Name="Block this country">
+        <TextBlock Text="&#xE733;" Style="{StaticResource Glyph}" FontSize="12" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+      </Button>
+    </Grid>
+    <DataTemplate.Triggers>
+      <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+        <Setter TargetName="BlockButton" Property="Visibility" Value="Visible" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+        <Setter TargetName="BlockButton" Property="Visibility" Value="Visible" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Country}" Value="{x:Null}">
+        <Setter TargetName="BlockButton" Property="Visibility" Value="Collapsed" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Country}" Value="">
+        <Setter TargetName="BlockButton" Property="Visibility" Value="Collapsed" />
+      </DataTrigger>
+    </DataTemplate.Triggers>
+  </DataTemplate>
 
 </ResourceDictionary>

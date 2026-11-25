@@ -12,6 +12,7 @@ public partial class AddressDetailsWindow : Window
 {
     private readonly AppServices services;
     private readonly string address;
+    private string? country;
 
     public AddressDetailsWindow(AppServices services, string address)
     {
@@ -28,8 +29,11 @@ public partial class AddressDetailsWindow : Window
         try
         {
             var result = await services.Client.LookupAsync(address);
-            CountryCode.Text = result.Country ?? "--";
+            country = result.IsInternal ? null : result.Country;
+            Flag.Code = country;
             CountryText.Text = result.IsInternal ? "Local network address" : Countries.GetName(result.Country);
+            BlockCountryButton.IsEnabled = Countries.IsValidCode(country);
+            BlockCountryButton.ToolTip = Countries.IsValidCode(country) ? $"Block every address from {Countries.GetName(country)}" : null;
             ActivityGrid.ItemsSource = result.RecentActivity;
             EmptyText.Visibility = result.RecentActivity.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -111,6 +115,18 @@ public partial class AddressDetailsWindow : Window
 
         await RunAsync(() => services.Client.UnbanAsync(new UnbanRequest { IPAddresses = [address], AddToWhitelist = true }));
         services.Settings.Invalidate();
+    }
+
+    private async void OnBlockCountry(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await CountryBlocker.BlockAsync(services, [country]);
+        }
+        catch (Exception ex)
+        {
+            UiDialogs.HandleError(ex, "Unable to block the country");
+        }
     }
 
     private bool Confirm(string message) => MessageBox.Show(this, message, Title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;

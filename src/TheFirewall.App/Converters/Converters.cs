@@ -1,7 +1,10 @@
+using System.Collections.Concurrent;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using TheFirewall.Core.Data;
 using TheFirewall.Core.Geo;
 using TheFirewall.Core.Monitoring;
@@ -161,12 +164,63 @@ public sealed class ExpiryConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
+/// <summary>
+/// Country code to its English name ("Unknown location" when empty). A ConverterParameter such as "Block {0}" formats the
+/// name into a sentence, with "this country" standing in for an unknown one.
+/// </summary>
 public sealed class CountryNameConverter : IValueConverter
 {
-    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
-        value is string code && code.Length > 0 ? Countries.GetName(code) : "Unknown location";
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        bool known = value is string code && code.Length > 0;
+        if (parameter is string format)
+        {
+            return string.Format(CultureInfo.CurrentCulture, format, known ? Countries.GetName((string)value!) : "this country");
+        }
+
+        return known ? Countries.GetName((string)value!) : "Unknown location";
+    }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+/// <summary>Country code to its flag image (null when the code is empty or no flag is available).</summary>
+public sealed class CountryFlagConverter : IValueConverter
+{
+    private static readonly ConcurrentDictionary<string, ImageSource?> Cache = new(StringComparer.OrdinalIgnoreCase);
+
+    public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture) =>
+        value is string code ? Get(code) : null;
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+
+    public static ImageSource? Get(string? code) =>
+        code is { Length: 2 } && code.All(char.IsAsciiLetter) ? Cache.GetOrAdd(code, Load) : null;
+
+    private static ImageSource? Load(string code)
+    {
+        try
+        {
+            var uri = new Uri($"pack://application:,,,/TheFirewall;component/Assets/Flags/{code.ToLowerInvariant()}.png", UriKind.Absolute);
+            using var stream = Application.GetResourceStream(uri)?.Stream;
+            if (stream is null)
+            {
+                return null;
+            }
+
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.StreamSource = stream;
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception ex) when (ex is IOException or NotSupportedException or InvalidOperationException or UriFormatException)
+        {
+            return null;
+        }
+    }
 }
 
 internal static class ThemeBrushes

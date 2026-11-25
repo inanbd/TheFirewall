@@ -48,6 +48,12 @@ internal static class ScreenshotRunner
             await SettleAsync();
             Save(window, Path.Combine(outputDirectory, $"{index++:00}-dashboard-dark.png"));
             viewModel.Navigate("activity");
+            if (viewModel.Pages.OfType<ActivityViewModel>().FirstOrDefault() is { Items.Count: > 2 } activity)
+            {
+                // A selected row shows the "block this country" button in its Country cell.
+                activity.Selected = activity.Items[2];
+            }
+
             await SettleAsync();
             Save(window, Path.Combine(outputDirectory, $"{index++:00}-activity-dark.png"));
             App.ApplyTheme("Light");

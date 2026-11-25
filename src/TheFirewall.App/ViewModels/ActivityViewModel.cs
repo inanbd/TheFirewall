@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using TheFirewall.App.Services;
 using TheFirewall.Core.Data;
+using TheFirewall.Core.Geo;
 using TheFirewall.Core.Ipc;
 
 namespace TheFirewall.App.ViewModels;
@@ -143,7 +144,9 @@ public sealed partial class ActivityViewModel : PageViewModel
             bool match = (entry.IPAddress?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
                          (entry.UserName?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
                          (entry.Source?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                         (entry.Message?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false);
+                         (entry.Message?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                         (entry.Country?.Contains(s, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                         Countries.Matches(entry.Country, s);
             if (!match)
             {
                 return;
@@ -207,6 +210,10 @@ public sealed partial class ActivityViewModel : PageViewModel
         await RunAsync(() => Client.BanAsync(new BanRequest { IPAddress = ip, DurationMinutes = 0, Reason = "Banned forever from the activity feed" }),
             "Unable to ban the address");
     }
+
+    /// <summary>Blocks every address from the country of the entry (or the selected row).</summary>
+    [RelayCommand]
+    private async Task BlockCountryAsync(ActivityEntry? entry) => await CountryBlocker.BlockAsync(Services, [(entry ?? Selected)?.Country]);
 
     [RelayCommand]
     private async Task WhitelistAsync(ActivityEntry? entry)

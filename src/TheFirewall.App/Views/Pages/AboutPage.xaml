@@ -47,11 +47,13 @@
           <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" FontSize="12">
             <Run Text="Inspired by IPBan by Digital Ruby (MIT License); several log detection expressions are adapted from it." /><LineBreak />
             <Run Text="IP geolocation by DB-IP (db-ip.com), licensed under Creative Commons Attribution 4.0." /><LineBreak />
+            <Run Text="Country flags from flag-icons by Panayiotis Lipiridis (MIT License)." /><LineBreak />
             <Run Text="Built with .NET, WPF, CommunityToolkit.Mvvm and Microsoft.Data.Sqlite (SQLite)." />
           </TextBlock>
           <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
             <Button Style="{StaticResource LinkButton}" Content="IPBan" Command="{Binding OpenLinkCommand}" CommandParameter="https://github.com/DigitalRuby/IPBan" />
             <Button Style="{StaticResource LinkButton}" Content="DB-IP" Margin="16,0,0,0" Command="{Binding OpenLinkCommand}" CommandParameter="https://db-ip.com" />
+            <Button Style="{StaticResource LinkButton}" Content="flag-icons" Margin="16,0,0,0" Command="{Binding OpenLinkCommand}" CommandParameter="https://github.com/lipis/flag-icons" />
           </StackPanel>
         </StackPanel>
       </Border>
