@@ -68,11 +68,19 @@ public static class CountryBlocker
             return false;
         }
 
-        return await services.Settings.SaveAsync(s =>
+        if (!await services.Settings.SaveAsync(s =>
+            {
+                s.CountryBlocking.Mode = plan.Mode;
+                s.CountryBlocking.Countries = [.. plan.Countries];
+            }))
         {
-            s.CountryBlocking.Mode = plan.Mode;
-            s.CountryBlocking.Countries = [.. plan.Countries];
-        });
+            return false;
+        }
+
+        UiDialogs.Info(plural ? "Countries blocked" : "Country blocked",
+            $"{names} {(plural ? "are" : "is")} now blocked. You can see and change the blocked countries on the Countries page." +
+            (services.Settings.Current?.ProtectionEnabled == false ? "\n\nProtection is paused right now, so the block starts when you resume it." : string.Empty));
+        return true;
     }
 
     private static string NameList(IEnumerable<string> codes)

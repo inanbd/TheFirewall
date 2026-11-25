@@ -20,7 +20,7 @@
       <MenuItem Header="Never ban (whitelist)" Command="{Binding UnbanAndWhitelistCommand}"
                 CommandParameter="{Binding PlacementTarget.SelectedItems, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
       <Separator />
-      <MenuItem Header="{Binding PlacementTarget.SelectedItem.Country, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource CountryName}, ConverterParameter='Block every address from {0}'}"
+      <MenuItem Header="{Binding PlacementTarget.SelectedItem.Country, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource CountryName}, ConverterParameter='Block every address from {0}', FallbackValue='Block every address from this country'}"
                 Command="{Binding BlockCountryCommand}"
                 CommandParameter="{Binding PlacementTarget.SelectedItems, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
         <MenuItem.Icon>

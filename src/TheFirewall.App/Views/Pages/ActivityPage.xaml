@@ -70,7 +70,7 @@
               <MenuItem Header="Ban this address forever" Command="{Binding BanForeverCommand}" />
               <MenuItem Header="Never ban this address (whitelist)" Command="{Binding WhitelistCommand}" />
               <Separator />
-              <MenuItem Header="{Binding Selected.Country, Converter={StaticResource CountryName}, ConverterParameter='Block every address from {0}'}"
+              <MenuItem Header="{Binding Selected.Country, Converter={StaticResource CountryName}, ConverterParameter='Block every address from {0}', FallbackValue='Block every address from this country'}"
                         Command="{Binding BlockCountryCommand}">
                 <MenuItem.Icon>
                   <TextBlock Text="&#xE733;" Style="{StaticResource Glyph}" FontSize="14" Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
