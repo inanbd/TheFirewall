@@ -100,7 +100,8 @@ public sealed partial class PortItem(PortRule rule, PortsViewModel owner) : Obse
         }
 
         var local = utc.Value.ToLocalTime();
-        return local.Date == DateTime.Today ? local.ToString("t", CultureInfo.CurrentCulture) : local.ToString("ddd t", CultureInfo.CurrentCulture);
+        var time = local.ToString("t", CultureInfo.CurrentCulture);
+        return local.Date == DateTime.Today ? time : $"{local.ToString("ddd", CultureInfo.CurrentCulture)} {time}";
     }
 
     [RelayCommand]

@@ -41,6 +41,13 @@ internal static class ScreenshotRunner
                 viewModel.Navigate(page.Key);
                 await SettleAsync();
                 Save(window, Path.Combine(outputDirectory, $"{index++:00}-{page.Key}.png"));
+                if (page.Key == "ports" && FindScrollViewer(window.Content as DependencyObject) is { } scroller)
+                {
+                    // The listening ports are further down the page.
+                    scroller.ScrollToEnd();
+                    await SettleAsync();
+                    Save(window, Path.Combine(outputDirectory, $"{index++:00}-{page.Key}-listening.png"));
+                }
             }
 
             App.ApplyTheme("Dark");
@@ -114,6 +121,31 @@ internal static class ScreenshotRunner
             await Task.Delay(250);
             await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
         }
+    }
+
+    /// <summary>The scroll viewer of the page shown in the main window (the first one with something to scroll).</summary>
+    private static System.Windows.Controls.ScrollViewer? FindScrollViewer(DependencyObject? root)
+    {
+        if (root is null)
+        {
+            return null;
+        }
+
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is System.Windows.Controls.ScrollViewer { ScrollableHeight: > 0 } viewer)
+            {
+                return viewer;
+            }
+
+            if (FindScrollViewer(child) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 
     private static void Save(Window window, string path)

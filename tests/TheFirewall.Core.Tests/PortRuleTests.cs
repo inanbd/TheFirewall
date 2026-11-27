@@ -326,3 +326,22 @@ public class PortReachabilityTests
     [InlineData("RPC", 135, false)]
     public void Port_lists(string list, int port, bool expected) => Assert.Equal(expected, Ports.PortReachability.PortListContains(list, port));
 }
+
+public class PackageRuleTests
+{
+    [Fact]
+    public void Rules_for_a_store_app_do_not_open_other_programs_ports()
+    {
+        var port = new Ports.ListeningPort { Protocol = "TCP", Port = 45678, Addresses = ["0.0.0.0"], ProcessName = "pwsh", ProcessPath = @"C:\Program Files\PowerShell\7\pwsh.exe" };
+        var packageRule = new Ports.FirewallRuleInfo
+        {
+            Name = "@{MicrosoftWindows.Client.OOBE_1000.26100.28.0_x64__cw5n1h2txyewy?ms-resource://MicrosoftWindows.Client.OOBE/resources/AppName}",
+            Enabled = true,
+            Allow = true,
+            AppPackageId = "S-1-15-2-1234",
+        };
+
+        Ports.PortReachability.Evaluate(port, [packageRule], new Ports.FirewallPolicyInfo(), new FirewallSettings(), DateTimeOffset.UtcNow, TimeZoneInfo.Utc);
+        Assert.Equal(Ports.PortExposure.Blocked, port.Exposure);
+    }
+}

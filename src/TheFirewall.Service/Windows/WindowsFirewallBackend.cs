@@ -57,7 +57,8 @@ internal sealed class WindowsFirewallBackend : IFirewallBackend
 
                 result.Add(new FirewallRuleInfo
                 {
-                    Name = rule.Name ?? string.Empty,
+                    Name = DisplayName(rule.Name),
+                    AppPackageId = LateBoundString(rule, "LocalAppPackageId"),
                     Enabled = rule.Enabled,
                     Allow = rule.Action == NetFw.ActionAllow,
                     Protocol = rule.Protocol,
@@ -95,6 +96,34 @@ internal sealed class WindowsFirewallBackend : IFirewallBackend
             };
         }
     }
+
+    /// <summary>Reads a property that only newer rule interfaces (INetFwRule3) have, through IDispatch.</summary>
+    private static string LateBoundString(object comObject, string property)
+    {
+        try
+        {
+            return comObject.GetType().InvokeMember(property, System.Reflection.BindingFlags.GetProperty, null, comObject, null) as string ?? string.Empty;
+        }
+        catch (Exception ex) when (ex is MissingMethodException or COMException or System.Reflection.TargetInvocationException or NotSupportedException)
+        {
+            return string.Empty;
+        }
+    }
+
+    /// <summary>Resolves names such as "@FirewallAPI.dll,-28502" or "@{Package?ms-resource://...}" to readable text.</summary>
+    private static string DisplayName(string? name)
+    {
+        if (string.IsNullOrEmpty(name) || name[0] != '@')
+        {
+            return name ?? string.Empty;
+        }
+
+        var buffer = new System.Text.StringBuilder(512);
+        return SHLoadIndirectString(name, buffer, buffer.Capacity, IntPtr.Zero) == 0 && buffer.Length > 0 ? buffer.ToString() : name;
+    }
+
+    [DllImport("shlwapi.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHLoadIndirectString(string source, System.Text.StringBuilder output, int outputSize, IntPtr reserved);
 
     /// <summary>Visits every rule; the rule object is released after the callback. Call inside <see cref="sync"/>.</summary>
     private void ForEachRule(Action<INetFwRule> visit)

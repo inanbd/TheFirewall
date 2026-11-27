@@ -89,6 +89,9 @@ public sealed class FirewallRuleInfo
 
     /// <summary>Windows Firewall profile bitmask (1 domain, 2 private, 4 public).</summary>
     public int Profiles { get; set; } = 0x7FFFFFFF;
+
+    /// <summary>Package SID of the Microsoft Store app the rule is limited to; empty for ordinary rules.</summary>
+    public string AppPackageId { get; set; } = string.Empty;
 }
 
 /// <summary>Windows Firewall settings for the network profiles that are active right now.</summary>
@@ -271,6 +274,13 @@ public static class PortReachability
     private static bool AppliesTo(FirewallRuleInfo rule, ListeningPort port, RuleProtocol protocol, int currentProfiles)
     {
         if ((rule.Profiles & currentProfiles) == 0)
+        {
+            return false;
+        }
+
+        // Rules for a Microsoft Store app (e.g. Windows' own OOBE app) only apply to that app's processes,
+        // never to services and desktop programs, even when they list no ports or program.
+        if (!IsAny(rule.AppPackageId))
         {
             return false;
         }
