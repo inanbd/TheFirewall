@@ -53,6 +53,7 @@ easy-to-use control panel and a tray icon that shows at a glance whether you are
 | --- | --- |
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Dashboard in dark mode](docs/screenshots/dashboard-dark.png) |
 | ![Live activity](docs/screenshots/live-activity.png) | ![Banned addresses](docs/screenshots/banned-addresses.png) |
+| ![Ports: open, restrict or close ports, with schedules](docs/screenshots/ports.png) | ![Ports listening on this computer and who can reach them](docs/screenshots/ports-listening.png) |
 | ![Login monitors](docs/screenshots/login-monitors.png) | ![Custom login monitor with tester](docs/screenshots/custom-monitor.png) |
 | ![Country blocking](docs/screenshots/countries.png) | ![Firewall rules](docs/screenshots/firewall-rules.png) |
 
