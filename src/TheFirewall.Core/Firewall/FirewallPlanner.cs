@@ -19,6 +19,15 @@ public sealed class FirewallPlanInput
 
     /// <summary>Ban rule membership from the previous plan, used to keep rules stable when addresses come and go.</summary>
     public IReadOnlyDictionary<string, List<string>>? PreviousBanChunks { get; init; }
+
+    /// <summary>The current time, for port schedules and temporary openings.</summary>
+    public DateTimeOffset Now { get; init; } = DateTimeOffset.UtcNow;
+
+    /// <summary>Time zone of port schedules (the computer's).</summary>
+    public TimeZoneInfo TimeZone { get; init; } = TimeZoneInfo.Local;
+
+    /// <summary>Merged address ranges of the given countries; null when the country database is not available.</summary>
+    public Func<IReadOnlyCollection<string>, IReadOnlyList<IPAddressRange>?>? CountryRangeLookup { get; init; }
 }
 
 public sealed class FirewallPlan
@@ -134,8 +143,93 @@ public static class FirewallPlanner
             plan.Rules.Add(ToSpec(prefix, rule));
         }
 
+        // ---- Ports page
+        foreach (var port in settings.Ports)
+        {
+            AddPortRules(plan, prefix, port, input, protectedRanges);
+        }
+
         return plan;
     }
+
+    /// <summary>
+    /// Rules for a port on the Ports page. Windows Firewall lets a block rule win over any allow rule, so "closed" and
+    /// "only some addresses" are block rules for everyone else (never for the whitelist or the local network), and
+    /// "open" is an allow rule.
+    /// </summary>
+    private static void AddPortRules(FirewallPlan plan, string prefix, PortRule port, FirewallPlanInput input, List<IPAddressRange> protectedRanges)
+    {
+        var ports = NormalizePorts(port.Ports);
+        if (ports.Length == 0)
+        {
+            return;
+        }
+
+        var access = PortPolicy.Evaluate(port, input.Now, input.TimeZone).Access;
+        var allowed = new List<IPAddressRange>();
+        if (access == PortAccess.Restricted)
+        {
+            allowed = IPUtility.ParseList(port.AllowedAddresses);
+            if (port.AllowedCountries.Count > 0)
+            {
+                if (input.CountryRangeLookup?.Invoke(port.AllowedCountries) is { } countryRanges)
+                {
+                    allowed.AddRange(countryRanges);
+                }
+                else
+                {
+                    // Without the country database the allowed countries are unknown: keep the port open rather than lock them out.
+                    access = PortAccess.Everyone;
+                }
+            }
+        }
+
+        var label = $"{(string.IsNullOrWhiteSpace(port.Name) ? "Port" : port.Name.Trim())} ({PortProtocolName(port.Protocol)} {ports})";
+        RuleProtocol[] protocols = port.Protocol switch
+        {
+            RuleProtocol.Tcp => [RuleProtocol.Tcp],
+            RuleProtocol.Udp => [RuleProtocol.Udp],
+            _ => [RuleProtocol.Tcp, RuleProtocol.Udp],
+        };
+
+        foreach (var protocol in protocols)
+        {
+            var name = $"{prefix}Port_{SanitizeId(port.Id)}_{(protocol == RuleProtocol.Tcp ? "Tcp" : "Udp")}_";
+            switch (access)
+            {
+                case PortAccess.Everyone:
+                    plan.Rules.Add(new FirewallRuleSpec
+                    {
+                        Name = name + "Open",
+                        Description = $"{label}: open to everyone. Managed on TheFirewall's Ports page.",
+                        Action = RuleAction.Allow,
+                        Protocol = protocol,
+                        LocalPorts = ports,
+                    });
+                    break;
+
+                case PortAccess.Restricted:
+                    var merged = IPAddressRange.Merge(allowed);
+                    AddChunkedRules(plan, name + "Allow_", merged, true, protocol, ports,
+                        $"{label}: addresses that may connect. Managed on TheFirewall's Ports page.", RuleAction.Allow);
+                    AddChunkedRules(plan, name + "Block_", IPAddressRange.Complement(merged.Concat(protectedRanges)), true, protocol, ports,
+                        $"{label}: everyone else is blocked. Managed on TheFirewall's Ports page.");
+                    break;
+
+                default:
+                    AddChunkedRules(plan, name + "Block_", IPAddressRange.Complement(protectedRanges), true, protocol, ports,
+                        $"{label}: closed; everyone except the whitelist and the local network is blocked. Managed on TheFirewall's Ports page.");
+                    break;
+            }
+        }
+    }
+
+    public static string PortProtocolName(RuleProtocol protocol) => protocol switch
+    {
+        RuleProtocol.Tcp => "TCP",
+        RuleProtocol.Udp => "UDP",
+        _ => "TCP+UDP",
+    };
 
     public static FirewallRuleSpec ToSpec(string prefix, CustomFirewallRule rule)
     {

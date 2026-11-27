@@ -30,6 +30,9 @@ public sealed class FirewallSettings
 
     public List<CustomFirewallRule> CustomRules { get; set; } = [];
 
+    /// <summary>Ports managed on the Ports page: open, closed, or open to some addresses, optionally on a schedule.</summary>
+    public List<PortRule> Ports { get; set; } = [];
+
     /// <summary>Per built-in source overrides (enabled state and threshold), keyed by source id.</summary>
     public Dictionary<string, SourceOverride> SourceOverrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 

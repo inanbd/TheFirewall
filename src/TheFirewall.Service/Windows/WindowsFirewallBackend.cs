@@ -3,6 +3,7 @@ using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
 using TheFirewall.Core.Configuration;
 using TheFirewall.Core.Firewall;
+using TheFirewall.Core.Ports;
 
 namespace TheFirewall.Service.Windows;
 
@@ -28,53 +29,120 @@ internal sealed class WindowsFirewallBackend : IFirewallBackend
         var names = new List<string>();
         lock (sync)
         {
-            var rules = policy.Rules;
-            var enumerator = rules.GetEnumeratorVariant();
-            var buffer = new object[64];
-            IntPtr fetchedPointer = Marshal.AllocCoTaskMem(sizeof(int));
-            try
+            ForEachRule(rule =>
             {
-                while (true)
+                var name = rule.Name;
+                if (name is not null && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                 {
-                    Marshal.WriteInt32(fetchedPointer, 0);
-                    enumerator.Next(buffer.Length, buffer, fetchedPointer);
-                    int fetched = Marshal.ReadInt32(fetchedPointer);
-                    for (int i = 0; i < fetched; i++)
-                    {
-                        if (buffer[i] is INetFwRule rule)
-                        {
-                            try
-                            {
-                                var name = rule.Name;
-                                if (name is not null && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    names.Add(name);
-                                }
-                            }
-                            finally
-                            {
-                                Marshal.ReleaseComObject(rule);
-                            }
-                        }
-
-                        buffer[i] = null!;
-                    }
-
-                    if (fetched < buffer.Length)
-                    {
-                        break;
-                    }
+                    names.Add(name);
                 }
-            }
-            finally
-            {
-                Marshal.FreeCoTaskMem(fetchedPointer);
-                Marshal.ReleaseComObject(enumerator);
-                Marshal.ReleaseComObject(rules);
-            }
+            });
         }
 
         return names.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Every inbound rule in Windows Firewall (Windows' own and other programs' too), for the Ports page.</summary>
+    public IReadOnlyList<FirewallRuleInfo> GetInboundRules()
+    {
+        var result = new List<FirewallRuleInfo>();
+        lock (sync)
+        {
+            ForEachRule(rule =>
+            {
+                if (rule.Direction != NetFw.DirectionInbound)
+                {
+                    return;
+                }
+
+                result.Add(new FirewallRuleInfo
+                {
+                    Name = rule.Name ?? string.Empty,
+                    Enabled = rule.Enabled,
+                    Allow = rule.Action == NetFw.ActionAllow,
+                    Protocol = rule.Protocol,
+                    LocalPorts = rule.LocalPorts ?? string.Empty,
+                    RemoteAddresses = rule.RemoteAddresses ?? string.Empty,
+                    ApplicationName = rule.ApplicationName ?? string.Empty,
+                    ServiceName = rule.ServiceName ?? string.Empty,
+                    Profiles = rule.Profiles,
+                });
+            });
+        }
+
+        return result;
+    }
+
+    /// <summary>Firewall state for the network profiles that are active now.</summary>
+    public FirewallPolicyInfo GetPolicyInfo()
+    {
+        lock (sync)
+        {
+            int current = policy.CurrentProfileTypes;
+            var profiles = new[] { NetFw.ProfileDomain, NetFw.ProfilePrivate, NetFw.ProfilePublic }.Where(p => (current & p) != 0).ToList();
+            if (profiles.Count == 0)
+            {
+                profiles.Add(NetFw.ProfilePublic);
+                current = NetFw.ProfilePublic;
+            }
+
+            return new FirewallPolicyInfo
+            {
+                CurrentProfiles = current,
+                Enabled = profiles.All(p => policy.get_FirewallEnabled(p)),
+                DefaultInboundBlock = profiles.All(p => policy.get_DefaultInboundAction(p) == NetFw.ActionBlock),
+                BlockAllInbound = profiles.Any(p => policy.get_BlockAllInboundTraffic(p)),
+            };
+        }
+    }
+
+    /// <summary>Visits every rule; the rule object is released after the callback. Call inside <see cref="sync"/>.</summary>
+    private void ForEachRule(Action<INetFwRule> visit)
+    {
+        var rules = policy.Rules;
+        var enumerator = rules.GetEnumeratorVariant();
+        var buffer = new object[64];
+        IntPtr fetchedPointer = Marshal.AllocCoTaskMem(sizeof(int));
+        try
+        {
+            while (true)
+            {
+                Marshal.WriteInt32(fetchedPointer, 0);
+                enumerator.Next(buffer.Length, buffer, fetchedPointer);
+                int fetched = Marshal.ReadInt32(fetchedPointer);
+                for (int i = 0; i < fetched; i++)
+                {
+                    if (buffer[i] is INetFwRule rule)
+                    {
+                        try
+                        {
+                            visit(rule);
+                        }
+                        catch (COMException)
+                        {
+                            // A rule that cannot be read (e.g. removed meanwhile) is skipped.
+                        }
+                        finally
+                        {
+                            Marshal.ReleaseComObject(rule);
+                        }
+                    }
+
+                    buffer[i] = null!;
+                }
+
+                if (fetched < buffer.Length)
+                {
+                    break;
+                }
+            }
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(fetchedPointer);
+            Marshal.ReleaseComObject(enumerator);
+            Marshal.ReleaseComObject(rules);
+        }
     }
 
     public void SetRule(FirewallRuleSpec spec)

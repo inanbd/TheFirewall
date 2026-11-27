@@ -12,6 +12,7 @@ using TheFirewall.Core.Geo;
 using TheFirewall.Core.Ipc;
 using TheFirewall.Core.Monitoring;
 using TheFirewall.Core.Networking;
+using TheFirewall.Core.Ports;
 
 namespace TheFirewall.Core.Service;
 
@@ -53,6 +54,8 @@ public sealed class FirewallCoordinator : IAsyncDisposable
     private ProcessLauncher? launcher;
     private Dictionary<string, List<string>>? lastBanChunks;
     private (string Key, List<IPAddressRange> Ranges)? countryCache;
+    private readonly Dictionary<string, List<IPAddressRange>> portCountryCache = new(StringComparer.Ordinal);
+    private string? lastPortStateKey;
     private int ruleCount;
     private int blockedEntries;
     private DateTimeOffset? lastSyncUtc;
@@ -241,6 +244,11 @@ public sealed class FirewallCoordinator : IAsyncDisposable
         if (s.CountryBlocking.Mode != CountryBlockingMode.Off && geo is null)
         {
             status.Warnings.Add("Country blocking is on, but the country database has not been downloaded yet.");
+        }
+
+        if (geo is null && s.Ports.Any(PortNeedsCountries))
+        {
+            status.Warnings.Add("Some ports allow only certain countries, but the country database has not been downloaded yet, so those ports are open to everyone for now.");
         }
 
         if (firewallError is not null)
@@ -474,7 +482,7 @@ public sealed class FirewallCoordinator : IAsyncDisposable
                 Engine.Log(ActivityType.Info, newSettings.ProtectionEnabled ? "Protection resumed." : "Protection paused.");
             }
 
-            bool geoNeeded = newSettings.CountryBlocking.Mode != CountryBlockingMode.Off && geo is null;
+            bool geoNeeded = (newSettings.CountryBlocking.Mode != CountryBlockingMode.Off || newSettings.Ports.Any(PortNeedsCountries)) && geo is null;
             bool feedsChanged = !FeedsEqual(previous.ThreatFeeds, newSettings.ThreatFeeds);
             if (geoNeeded || feedsChanged)
             {
@@ -565,6 +573,7 @@ public sealed class FirewallCoordinator : IAsyncDisposable
                 profileState = new FirewallProfileState { Available = false, Error = ex.Message };
             }
 
+            var now = time.GetUtcNow();
             var plan = FirewallPlanner.Build(new FirewallPlanInput
             {
                 Settings = s,
@@ -572,7 +581,11 @@ public sealed class FirewallCoordinator : IAsyncDisposable
                 CountryRanges = GetCountryRanges(s),
                 FeedRanges = feeds?.GetRanges(s.ThreatFeeds.Where(f => f.Enabled)) ?? new Dictionary<string, List<IPAddressRange>>(),
                 PreviousBanChunks = lastBanChunks,
+                Now = now,
+                TimeZone = time.LocalTimeZone,
+                CountryRangeLookup = GetPortCountryRanges,
             });
+            lastPortStateKey = PortPolicy.StateKey(s.Ports, now, time.LocalTimeZone);
 
             var result = synchronizer.Apply(plan, FirewallPlanner.SanitizePrefix(s.General.FirewallRulePrefix));
             lastBanChunks = plan.BanChunks;
@@ -632,6 +645,43 @@ public sealed class FirewallCoordinator : IAsyncDisposable
         }
     }
 
+    /// <summary>Reads listening ports and Windows Firewall rules; set by the Windows service.</summary>
+    public IPortInspector? PortInspector { get; set; }
+
+    /// <summary>Ports programs on this computer listen on, and whether each one can be reached from the network.</summary>
+    public ListeningPortsResponse GetListeningPorts()
+    {
+        var inspector = PortInspector;
+        if (inspector is null)
+        {
+            return new ListeningPortsResponse { Error = "Listing ports is not available on this system." };
+        }
+
+        try
+        {
+            var ports = inspector.GetListeningPorts().ToList();
+            var rules = inspector.GetInboundRules();
+            var policy = inspector.GetPolicy();
+            var s = settings;
+            var now = time.GetUtcNow();
+            foreach (var port in ports)
+            {
+                port.KnownName ??= PortCatalog.GetName(port.Port);
+                PortReachability.Evaluate(port, rules, policy, s, now, time.LocalTimeZone);
+            }
+
+            return new ListeningPortsResponse
+            {
+                Ports = [.. ports.OrderBy(p => p.Port).ThenBy(p => p.Protocol, StringComparer.Ordinal)],
+            };
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Unable to list listening ports");
+            return new ListeningPortsResponse { Error = "Unable to list listening ports: " + ex.Message };
+        }
+    }
+
     /// <summary>Deletes every firewall rule TheFirewall created (used on uninstall).</summary>
     public int RemoveAllRules() => synchronizer?.RemoveAll(FirewallPlanner.SanitizePrefix(settings.General.FirewallRulePrefix)) ?? 0;
 
@@ -654,6 +704,36 @@ public sealed class FirewallCoordinator : IAsyncDisposable
         var ranges = geo.GetRanges(country.Countries);
         countryCache = (key, ranges);
         return ranges;
+    }
+
+    private static bool PortNeedsCountries(PortRule port) => port.Access == PortAccess.Restricted && port.AllowedCountries.Count > 0;
+
+    /// <summary>Address ranges of the countries a port allows (cached per country list and database edition).</summary>
+    private List<IPAddressRange>? GetPortCountryRanges(IReadOnlyCollection<string> codes)
+    {
+        var database = geo;
+        if (database is null)
+        {
+            return null;
+        }
+
+        var key = string.Join(',', codes.Select(c => c.ToUpperInvariant()).Order(StringComparer.Ordinal)) + "|" +
+                  database.BuildDate.ToString("O", CultureInfo.InvariantCulture);
+        lock (portCountryCache)
+        {
+            if (!portCountryCache.TryGetValue(key, out var ranges))
+            {
+                if (portCountryCache.Count > 32)
+                {
+                    portCountryCache.Clear();
+                }
+
+                ranges = database.GetRanges(codes);
+                portCountryCache[key] = ranges;
+            }
+
+            return ranges;
+        }
     }
 
     private void ConfigureMonitors()
@@ -722,7 +802,11 @@ public sealed class FirewallCoordinator : IAsyncDisposable
                 }
 
                 int expired = Engine.RunHousekeeping();
-                if (requested || expired > 0)
+
+                // Port schedules and temporary openings: re-apply the rules when a port opens or closes by itself.
+                bool portsChanged = settings.Ports.Count > 0 &&
+                                    PortPolicy.StateKey(settings.Ports, time.GetUtcNow(), time.LocalTimeZone) != lastPortStateKey;
+                if (requested || expired > 0 || portsChanged)
                 {
                     await SyncFirewallAsync(token).ConfigureAwait(false);
                 }

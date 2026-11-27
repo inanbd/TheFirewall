@@ -27,6 +27,7 @@ public sealed partial class MainViewModel : ObservableObject
             new DashboardViewModel(services),
             new ActivityViewModel(services),
             new BansViewModel(services),
+            new PortsViewModel(services),
             new RulesViewModel(services),
             new ListsViewModel(services),
             new SourcesViewModel(services),

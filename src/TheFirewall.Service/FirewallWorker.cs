@@ -40,6 +40,7 @@ internal sealed class FirewallWorker(ILoggerFactory loggerFactory, IHostApplicat
             coordinator = new FirewallCoordinator(paths, backend,
                 [sink => new WindowsEventLogMonitor(sink, loggerFactory.CreateLogger<WindowsEventLogMonitor>())],
                 loggerFactory, http, ServiceConstants.Version);
+            coordinator.PortInspector = new WindowsPortInspector(backend);
 
             await coordinator.StartAsync(stoppingToken).ConfigureAwait(false);
 

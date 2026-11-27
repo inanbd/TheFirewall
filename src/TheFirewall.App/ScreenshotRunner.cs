@@ -72,6 +72,16 @@ internal static class ScreenshotRunner
                 }, isNew: false)),
                 ("dialog-source", new Views.Dialogs.SourceEditorWindow(services.Client, Core.Configuration.BuiltInSources.Find("custom-logfile")!.Clone(), isBuiltIn: false, isNew: true)),
                 ("dialog-ban", new Views.Dialogs.BanDialog()),
+                ("dialog-port", new Views.Dialogs.PortEditorWindow(new Core.Configuration.PortRule
+                {
+                    Name = "Remote Desktop",
+                    Protocol = Core.Configuration.RuleProtocol.Any,
+                    Ports = "3389",
+                    Access = Core.Configuration.PortAccess.Restricted,
+                    AllowedAddresses = "203.0.113.0/24",
+                    AllowedCountries = ["US", "DE"],
+                    Schedule = new Core.Configuration.PortSchedule { Enabled = true, Days = Core.Configuration.WeekDays.Weekdays, From = "07:00", To = "20:00" },
+                }, isNew: false, "Right now port 3389 (svchost, Remote Desktop Services): Open to everyone: allowed by the Windows Firewall rule \"Remote Desktop - User Mode (TCP-In)\".")),
                 ("dialog-address", new Views.Dialogs.AddressDialog(whitelist: true)),
                 ("dialog-details", new Views.Dialogs.AddressDetailsWindow(services, "45.141.84.10")),
             })

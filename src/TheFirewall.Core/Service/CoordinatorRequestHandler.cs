@@ -54,6 +54,9 @@ public sealed class CoordinatorRequestHandler(FirewallCoordinator coordinator) :
             case IpcCommands.Feeds:
                 return coordinator.GetFeeds();
 
+            case IpcCommands.ListeningPorts:
+                return await Task.Run(coordinator.GetListeningPorts, cancellationToken).ConfigureAwait(false);
+
             // ---- Changes (the server only lets elevated clients get here)
             case IpcCommands.Ban:
                 coordinator.Ban(Require<BanRequest>(payload));

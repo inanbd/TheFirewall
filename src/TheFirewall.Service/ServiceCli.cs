@@ -15,7 +15,7 @@ namespace TheFirewall.Service;
 [SupportedOSPlatform("windows")]
 internal static class ServiceCli
 {
-    public static readonly string[] Verbs = ["install", "uninstall", "start", "stop", "status", "check", "activity", "configure", "remove-rules", "register-tray", "unregister-tray", "cleanup", "help", "--help", "-h", "/?"];
+    public static readonly string[] Verbs = ["install", "uninstall", "start", "stop", "status", "check", "activity", "ports", "export-settings", "import-settings", "configure", "remove-rules", "register-tray", "unregister-tray", "cleanup", "help", "--help", "-h", "/?"];
 
     /// <summary>
     /// Service permissions: the Windows defaults plus "start" for interactive users, so the app can start a stopped
@@ -33,7 +33,7 @@ internal static class ServiceCli
             return 0;
         }
 
-        if (verb is not ("status" or "check" or "activity") && !IsElevated())
+        if (verb is not ("status" or "check" or "activity" or "ports" or "export-settings") && !IsElevated())
         {
             Console.Error.WriteLine("This command must be run as administrator.");
             return 5;
@@ -51,6 +51,10 @@ internal static class ServiceCli
                 "status" => Status(),
                 "check" => Check(),
                 "activity" => ShowActivity(args.Length > 1 && int.TryParse(args[1], out var n) ? n : 30),
+                "ports" => ShowPorts(),
+                "export-settings" or "import-settings" when args.Length < 2 => Usage($"Usage: TheFirewall.Service.exe {verb} <file.json>"),
+                "export-settings" => ExportSettings(args[1]),
+                "import-settings" => ImportSettings(args[1]),
                 "remove-rules" => RemoveRules(),
                 "register-tray" => RegisterTray(args.Length > 1 ? args[1] : Path.Combine(AppContext.BaseDirectory, "TheFirewall.exe")),
                 "unregister-tray" => UnregisterTray(),
@@ -82,6 +86,9 @@ internal static class ServiceCli
               status             Show whether the service is installed and running.
               check              Connect to the running service and show whether you may change settings.
               activity [count]   Print the most recent activity (default 30 entries).
+              ports              List the ports programs listen on and whether each can be reached.
+              export-settings <file>   Save the service's settings to a JSON file.
+              import-settings <file>   Apply settings from a JSON file (e.g. to set up another server the same way).
               remove-rules       Delete every firewall rule created by TheFirewall.
               register-tray      Start the tray app for every user at sign-in (Task Scheduler).
               unregister-tray    Remove the sign-in task.
@@ -211,6 +218,102 @@ internal static class ServiceCli
             Console.WriteLine("Unable to reach the TheFirewall service: " + ex.Message);
             return 5;
         }
+    }
+
+    private static int Usage(string text)
+    {
+        Console.Error.WriteLine(text);
+        return 1;
+    }
+
+    private static int ExportSettings(string path) => RunClient(async client =>
+    {
+        var settings = await client.RequestAsync<FirewallSettings>(Core.Ipc.IpcCommands.GetSettings) ?? new FirewallSettings();
+        await File.WriteAllTextAsync(path, System.Text.Json.JsonSerializer.Serialize(settings, Core.Ipc.IpcJson.SettingsOptions));
+        Console.WriteLine($"Settings saved to {Path.GetFullPath(path)}.");
+        return 0;
+    });
+
+    private static int ImportSettings(string path) => RunClient(async client =>
+    {
+        var settings = System.Text.Json.JsonSerializer.Deserialize<FirewallSettings>(await File.ReadAllTextAsync(path), Core.Ipc.IpcJson.SettingsOptions)
+                       ?? throw new InvalidDataException("The file does not contain settings.");
+        var response = await client.RequestAsync<Core.Ipc.SaveSettingsResponse>(Core.Ipc.IpcCommands.SaveSettings, settings);
+        if (response is not { Saved: true })
+        {
+            Console.Error.WriteLine("The settings were not applied:");
+            foreach (var error in response?.Errors ?? [])
+            {
+                Console.Error.WriteLine("  " + error);
+            }
+
+            return 1;
+        }
+
+        Console.WriteLine("Settings applied.");
+        return 0;
+    });
+
+    /// <summary>Connects to the running service and runs <paramref name="action"/> (exit code 5 when unreachable).</summary>
+    private static int RunClient(Func<Core.Ipc.IpcClient, Task<int>> action)
+    {
+        try
+        {
+            return Task.Run(async () =>
+            {
+                await using var client = new Core.Ipc.IpcClient();
+                await client.ConnectAsync(TimeSpan.FromSeconds(10));
+                return await action(client);
+            }).GetAwaiter().GetResult();
+        }
+        catch (Core.Ipc.IpcException ex)
+        {
+            Console.Error.WriteLine("The TheFirewall service refused the request: " + ex.Message);
+            return 1;
+        }
+        catch (Exception ex) when (ex is IOException or System.TimeoutException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine("Unable to reach the TheFirewall service: " + ex.Message);
+            return 5;
+        }
+    }
+
+    private static int ShowPorts()
+    {
+        try
+        {
+            return ShowPortsAsync().GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Unable to reach the TheFirewall service: " + ex.Message);
+            return 5;
+        }
+    }
+
+    private static async Task<int> ShowPortsAsync()
+    {
+        await using var client = new Core.Ipc.IpcClient();
+        await client.ConnectAsync(TimeSpan.FromSeconds(10));
+        var response = await client.RequestAsync<Core.Ports.ListeningPortsResponse>(Core.Ipc.IpcCommands.ListeningPorts) ?? new();
+        if (response.Error is not null)
+        {
+            Console.WriteLine(response.Error);
+            return 1;
+        }
+
+        foreach (var p in response.Ports)
+        {
+            Console.WriteLine(string.Join("  ",
+                p.Protocol.PadRight(3),
+                p.Port.ToString(System.Globalization.CultureInfo.InvariantCulture).PadRight(5),
+                p.Exposure.ToString().PadRight(10),
+                (p.ProcessName ?? "?").PadRight(20),
+                string.Join(", ", p.Services.DefaultIfEmpty(p.KnownName ?? string.Empty)),
+                "- " + p.ExposureText));
+        }
+
+        return 0;
     }
 
     private static async Task<int> ShowActivityAsync(int count)

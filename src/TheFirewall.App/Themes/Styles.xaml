@@ -1,7 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:conv="clr-namespace:TheFirewall.App.Converters"
-                    xmlns:ctl="clr-namespace:TheFirewall.App.Controls">
+                    xmlns:ctl="clr-namespace:TheFirewall.App.Controls"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
 
   <!-- ===================================================================== Converters -->
   <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
@@ -18,6 +19,8 @@
   <conv:ExpiryConverter x:Key="Expiry" />
   <conv:CountryNameConverter x:Key="CountryName" />
   <conv:CountryFlagConverter x:Key="CountryFlag" />
+  <conv:PortExposureToBrushConverter x:Key="PortExposureBrush" />
+  <conv:PortExposureToGlyphConverter x:Key="PortExposureGlyph" />
   <conv:ActivityTypeToBrushConverter x:Key="ActivityBrush" />
   <conv:ActivityTypeToGlyphConverter x:Key="ActivityGlyph" />
   <conv:ActivityTypeToTextConverter x:Key="ActivityText" />
@@ -317,5 +320,47 @@
       </DataTrigger>
     </DataTemplate.Triggers>
   </DataTemplate>
+
+  <!-- ===================================================================== Segmented control -->
+  <!-- A row of buttons where one is selected: put SegmentButtons in a SegmentBar and bind each button's Tag to "is selected". -->
+  <Style x:Key="SegmentBar" TargetType="Border">
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+    <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style x:Key="SegmentButton" TargetType="Button">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+    <Setter Property="Padding" Value="12,4" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}" Margin="2">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+            </Trigger>
+            <Trigger Property="Tag">
+              <Trigger.Value>
+                <sys:Boolean>True</sys:Boolean>
+              </Trigger.Value>
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+              <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Foreground" Value="{DynamicResource TextFillColorDisabledBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 
 </ResourceDictionary>

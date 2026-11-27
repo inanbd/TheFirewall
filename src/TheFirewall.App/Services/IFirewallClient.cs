@@ -73,5 +73,8 @@ public interface IFirewallClient
 
     Task<List<FeedInfoDto>> GetFeedsAsync();
 
+    /// <summary>Ports programs on this computer listen on, and whether each can be reached from the network.</summary>
+    Task<TheFirewall.Core.Ports.ListeningPortsResponse> GetListeningPortsAsync();
+
     Task<List<FeedInfoDto>> RefreshFeedsAsync();
 }

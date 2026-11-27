@@ -12,6 +12,7 @@
     <DataTemplate DataType="{x:Type vm:ActivityViewModel}"><pages:ActivityPage /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:BansViewModel}"><pages:BansPage /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:RulesViewModel}"><pages:RulesPage /></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:PortsViewModel}"><pages:PortsPage /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:ListsViewModel}"><pages:ListsPage /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:SourcesViewModel}"><pages:SourcesPage /></DataTemplate>
     <DataTemplate DataType="{x:Type vm:CountriesViewModel}"><pages:CountriesPage /></DataTemplate>

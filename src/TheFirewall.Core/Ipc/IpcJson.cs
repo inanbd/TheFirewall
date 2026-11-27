@@ -85,6 +85,7 @@ public static class IpcCommands
     public const string Feeds = "feeds.list";
     public const string RefreshFeeds = "feeds.refresh";
     public const string SyncFirewall = "firewall.sync";
+    public const string ListeningPorts = "ports.listening";
 
     /// <summary>Server push: a new <see cref="Data.ActivityEntry"/>.</summary>
     public const string EventActivity = "event.activity";

@@ -128,6 +128,36 @@ public sealed class DemoClient : IFirewallClient
             Protocol = RuleProtocol.Tcp,
             RemotePorts = "23",
         });
+        s.Ports.Add(new PortRule
+        {
+            Id = "demo-port-rdp",
+            Name = "Remote Desktop",
+            Protocol = RuleProtocol.Any,
+            Ports = "3389",
+            Access = PortAccess.Restricted,
+            AllowedAddresses = "203.0.113.0/24",
+            AllowedCountries = ["US", "DE"],
+        });
+        s.Ports.Add(new PortRule { Id = "demo-port-sql", Name = "SQL Server", Protocol = RuleProtocol.Tcp, Ports = "1433", Access = PortAccess.Nobody });
+        s.Ports.Add(new PortRule
+        {
+            Id = "demo-port-ssh",
+            Name = "SSH",
+            Protocol = RuleProtocol.Tcp,
+            Ports = "22",
+            Access = PortAccess.Everyone,
+            Schedule = new PortSchedule { Enabled = true, Days = WeekDays.Weekdays, From = "08:00", To = "18:00" },
+        });
+        s.Ports.Add(new PortRule
+        {
+            Id = "demo-port-winrm",
+            Name = "Remote management (WinRM)",
+            Protocol = RuleProtocol.Tcp,
+            Ports = "5985-5986",
+            Access = PortAccess.Nobody,
+            OpenUntilUtc = DateTimeOffset.UtcNow.AddMinutes(95),
+        });
+        s.Ports.Add(new PortRule { Id = "demo-port-web", Name = "Web server", Protocol = RuleProtocol.Tcp, Ports = "80,443", Access = PortAccess.Everyone });
         s.UserNames.InstantBanUserNames = ["root", "test", "guest"];
         s.CountryBlocking.Countries = ["KP", "RU"];
         s.ThreatFeeds[0].Enabled = true;
@@ -569,4 +599,56 @@ public sealed class DemoClient : IFirewallClient
     }).ToList());
 
     public Task<List<FeedInfoDto>> RefreshFeedsAsync() => GetFeedsAsync();
+
+    public Task<TheFirewall.Core.Ports.ListeningPortsResponse> GetListeningPortsAsync()
+    {
+        const string svchost = @"C:\Windows\System32\svchost.exe";
+        static TheFirewall.Core.Ports.ListeningPort P(string protocol, int port, string process, string? path, string[] services, string[] serviceNames,
+            params string[] addresses) => new()
+        {
+            Protocol = protocol,
+            Port = port,
+            ProcessName = process,
+            ProcessPath = path,
+            Services = [.. services],
+            ServiceNames = [.. serviceNames],
+            Addresses = addresses.Length == 0 ? ["0.0.0.0", "::"] : [.. addresses],
+            ProcessId = 1000 + port,
+        };
+
+        var ports = new List<TheFirewall.Core.Ports.ListeningPort>
+        {
+            P("TCP", 22, "sshd", @"C:\Windows\System32\OpenSSH\sshd.exe", ["OpenSSH SSH Server"], ["sshd"]),
+            P("TCP", 80, "System", "System", [], []),
+            P("TCP", 135, "svchost", svchost, ["Remote Procedure Call (RPC)"], ["RpcSs"]),
+            P("TCP", 443, "System", "System", [], []),
+            P("TCP", 445, "System", "System", [], []),
+            P("TCP", 1433, "sqlservr", @"C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\Binn\sqlservr.exe", ["SQL Server (MSSQLSERVER)"], ["MSSQLSERVER"]),
+            P("TCP", 3306, "mysqld", @"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe", ["MySQL80"], ["MySQL80"], "127.0.0.1"),
+            P("TCP", 3389, "svchost", svchost, ["Remote Desktop Services"], ["TermService"]),
+            P("UDP", 3389, "svchost", svchost, ["Remote Desktop Services"], ["TermService"]),
+            P("TCP", 5985, "System", "System", [], []),
+            P("TCP", 8080, "node", @"C:\Program Files\nodejs\node.exe", [], []),
+            P("UDP", 123, "svchost", svchost, ["Windows Time"], ["W32Time"]),
+            P("UDP", 5353, "svchost", svchost, ["DNS Client"], ["Dnscache"]),
+        };
+
+        var rules = new List<TheFirewall.Core.Ports.FirewallRuleInfo>
+        {
+            new() { Name = "Remote Desktop - User Mode (TCP-In)", Enabled = true, Allow = true, Protocol = 6, LocalPorts = "3389", ApplicationName = svchost, ServiceName = "TermService" },
+            new() { Name = "OpenSSH SSH Server (sshd)", Enabled = true, Allow = true, Protocol = 6, LocalPorts = "22", ApplicationName = @"C:\Windows\System32\OpenSSH\sshd.exe" },
+            new() { Name = "World Wide Web Services (HTTP Traffic-In)", Enabled = true, Allow = true, Protocol = 6, LocalPorts = "80", ApplicationName = "System" },
+            new() { Name = "World Wide Web Services (HTTPS Traffic-In)", Enabled = true, Allow = true, Protocol = 6, LocalPorts = "443", ApplicationName = "System" },
+            new() { Name = "File and Printer Sharing (SMB-In)", Enabled = true, Allow = true, Protocol = 6, LocalPorts = "445", ApplicationName = "System", RemoteAddresses = "LocalSubnet" },
+            new() { Name = "Node.js JavaScript Runtime", Enabled = true, Allow = true, Protocol = 6, ApplicationName = @"C:\Program Files\nodejs\node.exe" },
+        };
+
+        foreach (var port in ports)
+        {
+            port.KnownName = TheFirewall.Core.Ports.PortCatalog.GetName(port.Port);
+            TheFirewall.Core.Ports.PortReachability.Evaluate(port, rules, new TheFirewall.Core.Ports.FirewallPolicyInfo(), settings, DateTimeOffset.UtcNow, TimeZoneInfo.Local);
+        }
+
+        return Task.FromResult(new TheFirewall.Core.Ports.ListeningPortsResponse { Ports = [.. ports.OrderBy(p => p.Port).ThenBy(p => p.Protocol, StringComparer.Ordinal)] });
+    }
 }

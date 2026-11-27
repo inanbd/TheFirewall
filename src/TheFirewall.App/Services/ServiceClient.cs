@@ -226,5 +226,8 @@ public sealed class ServiceClient(Dispatcher dispatcher) : IFirewallClient
 
     public Task<List<FeedInfoDto>> GetFeedsAsync() => Request<List<FeedInfoDto>>(IpcCommands.Feeds);
 
+    public Task<TheFirewall.Core.Ports.ListeningPortsResponse> GetListeningPortsAsync() =>
+        Request<TheFirewall.Core.Ports.ListeningPortsResponse>(IpcCommands.ListeningPorts);
+
     public Task<List<FeedInfoDto>> RefreshFeedsAsync() => Request<List<FeedInfoDto>>(IpcCommands.RefreshFeeds);
 }

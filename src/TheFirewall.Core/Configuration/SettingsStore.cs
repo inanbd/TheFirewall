@@ -87,6 +87,7 @@ public sealed class SettingsStore(string path, ILogger logger)
         s.Whitelist ??= [];
         s.Blacklist ??= [];
         s.CustomRules ??= [];
+        s.Ports ??= [];
         s.SourceOverrides ??= new Dictionary<string, SourceOverride>(StringComparer.OrdinalIgnoreCase);
         s.CustomSources ??= [];
         s.CountryBlocking ??= new CountryBlockingSettings();
@@ -145,6 +146,18 @@ public sealed class SettingsStore(string path, ILogger logger)
         s.CountryBlocking.Ports ??= string.Empty;
 
         EnsureUniqueIds(s.CustomRules, r => r.Id, (r, id) => r.Id = id);
+        EnsureUniqueIds(s.Ports, r => r.Id, (r, id) => r.Id = id);
+        foreach (var port in s.Ports)
+        {
+            port.Name = (port.Name ?? string.Empty).Trim();
+            port.Ports = FirewallPlanner.TryNormalizePorts(port.Ports, out var normalized, out _) ? normalized : (port.Ports ?? string.Empty).Trim();
+            port.AllowedAddresses ??= string.Empty;
+            port.AllowedCountries = (port.AllowedCountries ?? []).Where(c => !string.IsNullOrWhiteSpace(c))
+                .Select(c => c.Trim().ToUpperInvariant()).Distinct().ToList();
+            port.Schedule ??= new PortSchedule();
+            port.Schedule.From ??= string.Empty;
+            port.Schedule.To ??= string.Empty;
+        }
         EnsureUniqueIds(s.CustomSources, r => r.Id, (r, id) => r.Id = id);
         EnsureUniqueIds(s.ThreatFeeds, r => r.Id, (r, id) => r.Id = id);
 
@@ -162,6 +175,62 @@ public sealed class SettingsStore(string path, ILogger logger)
         {
             feed.RefreshHours = Math.Clamp(feed.RefreshHours, 1, 24 * 30);
             feed.MaxEntries = Math.Clamp(feed.MaxEntries, 1, 1_000_000);
+        }
+    }
+
+    private static void ValidatePort(List<string> errors, PortRule port)
+    {
+        var label = $"Port '{(string.IsNullOrWhiteSpace(port.Name) ? port.Ports : port.Name)}'";
+        if (string.IsNullOrWhiteSpace(port.Name))
+        {
+            errors.Add($"{label}: a name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(port.Ports))
+        {
+            errors.Add($"{label}: enter a port number or range, e.g. 3389 or 8000-8100.");
+        }
+        else if (!FirewallPlanner.TryNormalizePorts(port.Ports, out _, out var portError))
+        {
+            errors.Add($"{label}: {portError}");
+        }
+
+        if (port.Protocol is not (RuleProtocol.Tcp or RuleProtocol.Udp or RuleProtocol.Any))
+        {
+            errors.Add($"{label}: the protocol must be TCP, UDP or both.");
+        }
+
+        if (port.Access == PortAccess.Restricted)
+        {
+            var invalid = new List<string>();
+            var addresses = IPUtility.ParseList(port.AllowedAddresses, invalid);
+            if (invalid.Count > 0)
+            {
+                errors.Add($"{label}: invalid address(es) {string.Join(", ", invalid)}.");
+            }
+
+            foreach (var code in port.AllowedCountries.Where(c => !Geo.Countries.IsValidCode(c)))
+            {
+                errors.Add($"{label}: '{code}' is not a known country code.");
+            }
+
+            if (addresses.Count == 0 && invalid.Count == 0 && port.AllowedCountries.Count == 0)
+            {
+                errors.Add($"{label}: add at least one address or country that may connect, or close the port instead.");
+            }
+        }
+
+        if (port.Schedule.Enabled)
+        {
+            if (!PortSchedule.TryParseTime(port.Schedule.From, out _) || !PortSchedule.TryParseTime(port.Schedule.To, out _))
+            {
+                errors.Add($"{label}: schedule times must look like 08:00 or 18:30.");
+            }
+
+            if (port.Schedule.Days == WeekDays.None)
+            {
+                errors.Add($"{label}: choose at least one day for the schedule.");
+            }
         }
     }
 
@@ -221,6 +290,11 @@ public sealed class SettingsStore(string path, ILogger logger)
             {
                 errors.Add($"Firewall rule '{label}': invalid address(es) {string.Join(", ", invalid)}.");
             }
+        }
+
+        foreach (var port in s.Ports)
+        {
+            ValidatePort(errors, port);
         }
 
         foreach (var source in s.CustomSources)

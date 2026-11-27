@@ -8,6 +8,7 @@ using System.Windows.Media.Imaging;
 using TheFirewall.Core.Data;
 using TheFirewall.Core.Geo;
 using TheFirewall.Core.Monitoring;
+using TheFirewall.Core.Ports;
 
 namespace TheFirewall.App.Converters;
 
@@ -237,6 +238,34 @@ internal static class ThemeBrushes
     public static Brush Accent => Get("AccentFillColorDefaultBrush", Color.FromRgb(0x00, 0x5F, 0xB8));
 
     public static Brush Neutral => Get("TextFillColorSecondaryBrush", Color.FromRgb(0x60, 0x60, 0x60));
+}
+
+/// <summary>Colour for how reachable a port is: open (amber), some addresses (blue), blocked (green), local only (grey).</summary>
+public sealed class PortExposureToBrushConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
+    {
+        PortExposure.Open => ThemeBrushes.Warning,
+        PortExposure.OpenToSome => ThemeBrushes.Accent,
+        PortExposure.Blocked => ThemeBrushes.Success,
+        _ => ThemeBrushes.Neutral,
+    };
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
+}
+
+public sealed class PortExposureToGlyphConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture) => value switch
+    {
+        PortExposure.Open => "\uE785",        // unlocked
+        PortExposure.OpenToSome => "\uE8D7",  // permissions
+        PortExposure.Blocked => "\uE72E",     // locked
+        PortExposure.LocalOnly => "\uE770",   // this computer
+        _ => "\uE9CE",                        // unknown
+    };
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
 public sealed class ActivityTypeToBrushConverter : IValueConverter

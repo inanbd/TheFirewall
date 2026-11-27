@@ -28,6 +28,10 @@ easy-to-use control panel and a tray icon that shows at a glance whether you are
 - **Custom login monitors** – watch any event log (XPath + regex) or text log file (glob paths + regex), with a
   built-in tester. Your own apps can simply write `thefirewall failed login, ip address: 1.2.3.4, source: MyApp, user: bob`
   to a log file or the Application event log (IPBan's format works too).
+- **Ports** – open or close a port with one click, let only certain addresses or countries reach it (for example
+  Remote Desktop only from your office), open it only during set hours or for a while ("open RDP for 2 hours"), and
+  see every port programs listen on and whether other computers can reach it. Your whitelist and local network can
+  always connect, so closing a port never locks them out.
 - **Custom firewall rules** – allow or block ports, protocols, addresses and programs, inbound or outbound.
 - **Whitelist and blacklist** – addresses, CIDR blocks, ranges and wildcards; local networks are never banned by default.
 - **Country blocking** – block selected countries, or allow only the countries you work from, on all or specific ports
@@ -86,8 +90,11 @@ You can do the same from a script or an elevated prompt:
 ```
 
 If the service ever crashes, Windows restarts it automatically. Double-clicking `TheFirewall.Service.exe` also installs
-or starts the Windows service (it no longer runs as an ordinary program; use `--console` for troubleshooting), and
-`TheFirewall.Service.exe check` shows whether the service is reachable and whether you may change settings.
+or starts the Windows service (it no longer runs as an ordinary program; use `--console` for troubleshooting).
+
+Other useful commands: `TheFirewall.Service.exe check` shows whether the service is reachable and whether you may
+change settings, `ports` lists the ports programs listen on and who can reach them, and `export-settings` /
+`import-settings <file>` copy the settings from one server to another.
 
 ## How it works
 

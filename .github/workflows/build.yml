@@ -178,6 +178,72 @@ jobs:
             ($check -split "`r?`n" | Where-Object { $_ -match 'Country database' }) | ForEach-Object { Write-Host $_ }
             if (-not $geoReady) { throw 'The country database was not downloaded and loaded.' }
 
+            Write-Host '3d. Ports page: closing, restricting and opening a port writes the matching Windows Firewall rules.'
+            $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, 45678)
+            $listener.Start()
+            try {
+              $settingsFile = Join-Path $env:RUNNER_TEMP 'settings.json'
+              function Set-CiPorts([string]$portsJson) {
+                & $svc export-settings $settingsFile | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "export-settings failed ($LASTEXITCODE)" }
+                $node = [System.Text.Json.Nodes.JsonNode]::Parse((Get-Content $settingsFile -Raw))
+                $node['ports'] = [System.Text.Json.Nodes.JsonNode]::Parse($portsJson)
+                Set-Content $settingsFile $node.ToJsonString() -Encoding utf8
+                & $svc import-settings $settingsFile
+                if ($LASTEXITCODE -ne 0) { throw "import-settings failed ($LASTEXITCODE)" }
+              }
+              function Set-CiPort([string]$access, [string]$extra = '') {
+                Set-CiPorts ('[{"id":"citest","name":"CI port","protocol":"Tcp","ports":"45678","access":"' + $access + '"' + $extra + '}]')
+              }
+              function Get-CiRules { @(Get-NetFirewallRule -DisplayName 'TheFirewall_Port_citest_*' -ErrorAction SilentlyContinue) }
+              function Get-CiListing {
+                $all = & $svc ports | Out-String
+                $line = @($all -split "`r?`n" | Where-Object { $_ -match '^TCP\s+45678\b' })
+                if ($line.Count -eq 0) { Write-Host $all; throw 'The test listener on port 45678 is not in the list of listening ports.' }
+                Write-Host "ports: $($line[0])"
+                $line[0]
+              }
+
+              Write-Host '   Listening ports as the service sees them:'
+              & $svc ports | Write-Host
+
+              Set-CiPort 'Nobody'
+              $rules = Get-CiRules
+              $rules | Format-Table DisplayName, Enabled, Direction, Action -AutoSize | Out-String | Write-Host
+              if ($rules.Count -eq 0 -or ($rules | Where-Object { $_.Action -ne 'Block' -or $_.Direction -ne 'Inbound' })) { throw 'Closing the port should create inbound block rules only.' }
+              $localPorts = @($rules | Get-NetFirewallPortFilter | ForEach-Object { $_.LocalPort }) | Select-Object -Unique
+              if ("$localPorts" -ne '45678') { throw "Unexpected local ports on the block rules: $localPorts" }
+              if ((Get-CiListing) -notmatch '\bBlocked\b') { throw 'The closed port is not reported as blocked.' }
+
+              Set-CiPort 'Restricted' ',"allowedAddresses":"198.51.100.0/24"'
+              $rules = Get-CiRules
+              $allow = @($rules | Where-Object Action -eq 'Allow')
+              $block = @($rules | Where-Object Action -eq 'Block')
+              if ($allow.Count -ne 1 -or $block.Count -lt 1) { throw "Restricting the port should create allow and block rules ($($allow.Count) allow, $($block.Count) block)." }
+              $allowed = "$(($allow | Get-NetFirewallAddressFilter).RemoteAddress)"
+              Write-Host "   Allowed: $allowed"
+              if ($allowed -notmatch '198\.51\.100\.0') { throw "Unexpected allowed addresses: $allowed" }
+              if ((Get-CiListing) -notmatch '\bOpenToSome\b') { throw 'The restricted port is not reported as open to some addresses.' }
+
+              Set-CiPort 'Everyone'
+              $rules = Get-CiRules
+              if ($rules.Count -ne 1 -or $rules[0].Action -ne 'Allow' -or "$(($rules | Get-NetFirewallAddressFilter).RemoteAddress)" -ne 'Any') {
+                throw 'Opening the port should leave a single allow rule for any address.'
+              }
+              if ((Get-CiListing) -notmatch '\bOpen\b') { throw 'The open port is not reported as open.' }
+
+              $until = [DateTimeOffset]::UtcNow.AddMinutes(30).ToString('o')
+              Set-CiPort 'Nobody' (',"openUntilUtc":"' + $until + '"')
+              $rules = Get-CiRules
+              if ($rules.Count -ne 1 -or $rules[0].Action -ne 'Allow') { throw 'A closed port that is temporarily open should have an allow rule.' }
+
+              Set-CiPorts '[]'
+              if ((Get-CiRules).Count -ne 0) { throw 'Rules were left behind after the port was removed from the Ports page.' }
+            }
+            finally {
+              $listener.Stop()
+            }
+
             Write-Host '4. Uninstalling removes the service and its firewall rules.'
             & $svc uninstall
             if ($LASTEXITCODE -ne 0) { throw "uninstall failed ($LASTEXITCODE)" }
