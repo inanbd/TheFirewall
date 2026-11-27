@@ -235,3 +235,178 @@ internal interface INetFwRule
 
     int Action { get; set; }
 }
+
+/// <summary>
+/// INetFwRule3 (Windows 8+): INetFwRule's members, then INetFwRule2's, then its own, in vtable order.
+/// Used only to read which Microsoft Store app a rule is limited to.
+/// </summary>
+[ComImport]
+[Guid("B21563FF-D696-4222-AB46-4E89B73AB34A")]
+internal interface INetFwRule3
+{
+    string Name
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string Description
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string ApplicationName
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string ServiceName
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    int Protocol { get; set; }
+
+    string LocalPorts
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string RemotePorts
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string LocalAddresses
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string RemoteAddresses
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string IcmpTypesAndCodes
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    int Direction { get; set; }
+
+    object Interfaces
+    {
+        [return: MarshalAs(UnmanagedType.Struct)]
+        get;
+        [param: MarshalAs(UnmanagedType.Struct)]
+        set;
+    }
+
+    string InterfaceTypes
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    bool Enabled
+    {
+        [return: MarshalAs(UnmanagedType.VariantBool)]
+        get;
+        [param: MarshalAs(UnmanagedType.VariantBool)]
+        set;
+    }
+
+    string Grouping
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    int Profiles { get; set; }
+
+    bool EdgeTraversal
+    {
+        [return: MarshalAs(UnmanagedType.VariantBool)]
+        get;
+        [param: MarshalAs(UnmanagedType.VariantBool)]
+        set;
+    }
+
+    int Action { get; set; }
+
+    // INetFwRule2
+    int EdgeTraversalOptions { get; set; }
+
+    // INetFwRule3
+    string LocalAppPackageId
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string LocalUserOwner
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string LocalUserAuthorizedList
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string RemoteUserAuthorizedList
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    string RemoteMachineAuthorizedList
+    {
+        [return: MarshalAs(UnmanagedType.BStr)]
+        get;
+        [param: MarshalAs(UnmanagedType.BStr)]
+        set;
+    }
+
+    int SecureFlags { get; set; }
+}

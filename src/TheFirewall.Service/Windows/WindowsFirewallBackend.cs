@@ -58,7 +58,7 @@ internal sealed class WindowsFirewallBackend : IFirewallBackend
                 result.Add(new FirewallRuleInfo
                 {
                     Name = DisplayName(rule.Name),
-                    AppPackageId = LateBoundString(rule, "LocalAppPackageId"),
+                    AppPackageId = AppPackageOf(rule),
                     Enabled = rule.Enabled,
                     Allow = rule.Action == NetFw.ActionAllow,
                     Protocol = rule.Protocol,
@@ -97,14 +97,14 @@ internal sealed class WindowsFirewallBackend : IFirewallBackend
         }
     }
 
-    /// <summary>Reads a property that only newer rule interfaces (INetFwRule3) have, through IDispatch.</summary>
-    private static string LateBoundString(object comObject, string property)
+    /// <summary>Package SID of the Microsoft Store app a rule is limited to (INetFwRule3), or empty.</summary>
+    private static string AppPackageOf(INetFwRule rule)
     {
         try
         {
-            return comObject.GetType().InvokeMember(property, System.Reflection.BindingFlags.GetProperty, null, comObject, null) as string ?? string.Empty;
+            return rule is INetFwRule3 rule3 ? rule3.LocalAppPackageId ?? string.Empty : string.Empty;
         }
-        catch (Exception ex) when (ex is MissingMethodException or COMException or System.Reflection.TargetInvocationException or NotSupportedException)
+        catch (Exception ex) when (ex is COMException or InvalidCastException)
         {
             return string.Empty;
         }
