@@ -133,7 +133,7 @@ public sealed partial class ListeningPortItem(ListeningPort port, PortsViewModel
         ? $"{Port.ProcessName} ({string.Join(", ", Port.Services.Take(2))}{(Port.Services.Count > 2 ? ", …" : string.Empty)})"
         : Port.ProcessName ?? $"Process {Port.ProcessId}";
 
-    public string? ProgramToolTip => Port.ProcessPath;
+    public string? ProgramToolTip => string.IsNullOrEmpty(Port.UserName) ? Port.ProcessPath : $"{Port.ProcessPath}\nRuns as {Port.UserName}";
 
     public string UseText => Port.KnownName ?? string.Empty;
 

@@ -42,6 +42,12 @@ public sealed class ListeningPort
     /// <summary>Full path of the program ("System" for the Windows kernel), null when it could not be read.</summary>
     public string? ProcessPath { get; set; }
 
+    /// <summary>SID of the account the program runs as (e.g. S-1-5-18 for SYSTEM), null when unknown.</summary>
+    public string? UserSid { get; set; }
+
+    /// <summary>Name of that account, e.g. "NT AUTHORITY\SYSTEM".</summary>
+    public string? UserName { get; set; }
+
     /// <summary>Short names of the Windows services hosted by the process.</summary>
     public List<string> ServiceNames { get; set; } = [];
 
@@ -92,6 +98,15 @@ public sealed class FirewallRuleInfo
 
     /// <summary>Package SID of the Microsoft Store app the rule is limited to; empty for ordinary rules.</summary>
     public string AppPackageId { get; set; } = string.Empty;
+
+    /// <summary>SID of the rule's owner: the rule then only applies to programs running as that account.</summary>
+    public string LocalUserOwner { get; set; } = string.Empty;
+
+    /// <summary>Display name of <see cref="LocalUserOwner"/>.</summary>
+    public string LocalUserOwnerName { get; set; } = string.Empty;
+
+    /// <summary>The rule only applies to the users in this list (SDDL); such rules are not counted.</summary>
+    public string LocalUserAuthorizedList { get; set; } = string.Empty;
 }
 
 /// <summary>Windows Firewall settings for the network profiles that are active right now.</summary>
@@ -219,14 +234,14 @@ public static class PortReachability
         var allowAll = matching.FirstOrDefault(r => r.Allow && IsAnyAddress(r.RemoteAddresses));
         if (allowAll is not null)
         {
-            Set(port, PortExposure.Open, $"Open to everyone: allowed by the Windows Firewall rule \"{allowAll.Name}\".");
+            Set(port, PortExposure.Open, $"Open to everyone: allowed by the Windows Firewall rule \"{allowAll.Name}\"{OwnerNote(allowAll)}.");
             return;
         }
 
         var allowSome = matching.FirstOrDefault(r => r.Allow);
         if (allowSome is not null)
         {
-            Set(port, PortExposure.OpenToSome, $"Some addresses ({allowSome.RemoteAddresses}) may connect: allowed by \"{allowSome.Name}\".");
+            Set(port, PortExposure.OpenToSome, $"Some addresses ({allowSome.RemoteAddresses}) may connect: allowed by \"{allowSome.Name}\"{OwnerNote(allowSome)}.");
             return;
         }
 
@@ -278,9 +293,21 @@ public static class PortReachability
             return false;
         }
 
-        // Rules for a Microsoft Store app (e.g. Windows' own OOBE app) only apply to that app's processes,
-        // never to services and desktop programs, even when they list no ports or program.
+        // Rules for a Microsoft Store app only apply to that app's processes, never to services and desktop programs.
         if (!IsAny(rule.AppPackageId))
+        {
+            return false;
+        }
+
+        // A rule with an owner only applies to programs running as that account (e.g. "Windows Feature Experience
+        // Pack" on Windows Server 2025 allows everything, but only for programs running as SYSTEM).
+        if (!IsAny(rule.LocalUserOwner) && !string.Equals(rule.LocalUserOwner.Trim(), port.UserSid, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Rules limited to a list of users cannot be checked here; they are not counted.
+        if (!IsAny(rule.LocalUserAuthorizedList))
         {
             return false;
         }
@@ -309,6 +336,10 @@ public static class PortReachability
     }
 
     private static bool IsAny(string? value) => string.IsNullOrWhiteSpace(value) || value.Trim() == "*";
+
+    private static string OwnerNote(FirewallRuleInfo rule) => IsAny(rule.LocalUserOwner)
+        ? string.Empty
+        : $", which applies to programs running as {(string.IsNullOrWhiteSpace(rule.LocalUserOwnerName) ? rule.LocalUserOwner : rule.LocalUserOwnerName)}";
 
     private static bool IsAnyAddress(string? value) => IsAny(value) || value!.Trim().Equals("Any", StringComparison.OrdinalIgnoreCase);
 

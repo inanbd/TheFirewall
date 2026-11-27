@@ -344,4 +344,31 @@ public class PackageRuleTests
         Ports.PortReachability.Evaluate(port, [packageRule], new Ports.FirewallPolicyInfo(), new FirewallSettings(), DateTimeOffset.UtcNow, TimeZoneInfo.Utc);
         Assert.Equal(Ports.PortExposure.Blocked, port.Exposure);
     }
+
+    [Fact]
+    public void Rule_with_an_owner_only_counts_for_programs_running_as_that_account()
+    {
+        var ownedBySystem = new Ports.FirewallRuleInfo
+        {
+            Name = "Windows Feature Experience Pack",
+            Enabled = true,
+            Allow = true,
+            LocalUserOwner = "S-1-5-18",
+            LocalUserOwnerName = @"NT AUTHORITY\SYSTEM",
+        };
+        Ports.ListeningPort Port(string? sid) => new() { Protocol = "TCP", Port = 45678, Addresses = ["0.0.0.0"], ProcessName = "app", UserSid = sid };
+
+        var userProgram = Port("S-1-5-21-1-2-3-1001");
+        Ports.PortReachability.Evaluate(userProgram, [ownedBySystem], new Ports.FirewallPolicyInfo(), new FirewallSettings(), DateTimeOffset.UtcNow, TimeZoneInfo.Utc);
+        Assert.Equal(Ports.PortExposure.Blocked, userProgram.Exposure);
+
+        var systemProgram = Port("S-1-5-18");
+        Ports.PortReachability.Evaluate(systemProgram, [ownedBySystem], new Ports.FirewallPolicyInfo(), new FirewallSettings(), DateTimeOffset.UtcNow, TimeZoneInfo.Utc);
+        Assert.Equal(Ports.PortExposure.Open, systemProgram.Exposure);
+        Assert.Contains(@"running as NT AUTHORITY\SYSTEM", systemProgram.ExposureText, StringComparison.Ordinal);
+
+        var unknownUser = Port(null);
+        Ports.PortReachability.Evaluate(unknownUser, [ownedBySystem], new Ports.FirewallPolicyInfo(), new FirewallSettings(), DateTimeOffset.UtcNow, TimeZoneInfo.Utc);
+        Assert.Equal(Ports.PortExposure.Blocked, unknownUser.Exposure);
+    }
 }

@@ -58,7 +58,10 @@ internal sealed class WindowsFirewallBackend : IFirewallBackend
                 result.Add(new FirewallRuleInfo
                 {
                     Name = DisplayName(rule.Name),
-                    AppPackageId = AppPackageOf(rule),
+                    AppPackageId = Rule3(rule, r => r.LocalAppPackageId),
+                    LocalUserOwner = Rule3(rule, r => r.LocalUserOwner),
+                    LocalUserOwnerName = AccountName(Rule3(rule, r => r.LocalUserOwner)),
+                    LocalUserAuthorizedList = Rule3(rule, r => r.LocalUserAuthorizedList),
                     Enabled = rule.Enabled,
                     Allow = rule.Action == NetFw.ActionAllow,
                     Protocol = rule.Protocol,
@@ -97,16 +100,46 @@ internal sealed class WindowsFirewallBackend : IFirewallBackend
         }
     }
 
-    /// <summary>Package SID of the Microsoft Store app a rule is limited to (INetFwRule3), or empty.</summary>
-    private static string AppPackageOf(INetFwRule rule)
+    /// <summary>Reads a property that only INetFwRule3 (Windows 8 and later) has; empty when unavailable.</summary>
+    private static string Rule3(INetFwRule rule, Func<INetFwRule3, string?> read)
     {
         try
         {
-            return rule is INetFwRule3 rule3 ? rule3.LocalAppPackageId ?? string.Empty : string.Empty;
+            return rule is INetFwRule3 rule3 ? read(rule3) ?? string.Empty : string.Empty;
         }
         catch (Exception ex) when (ex is COMException or InvalidCastException)
         {
             return string.Empty;
+        }
+    }
+
+    private static readonly Dictionary<string, string> AccountNames = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>"S-1-5-18" becomes "NT AUTHORITY\SYSTEM" (cached; the SID itself when it cannot be resolved).</summary>
+    internal static string AccountName(string? sid)
+    {
+        if (string.IsNullOrWhiteSpace(sid))
+        {
+            return string.Empty;
+        }
+
+        lock (AccountNames)
+        {
+            if (!AccountNames.TryGetValue(sid, out var name))
+            {
+                try
+                {
+                    name = new System.Security.Principal.SecurityIdentifier(sid).Translate(typeof(System.Security.Principal.NTAccount)).Value;
+                }
+                catch (Exception ex) when (ex is ArgumentException or System.Security.Principal.IdentityNotMappedException or SystemException)
+                {
+                    name = sid;
+                }
+
+                AccountNames[sid] = name;
+            }
+
+            return name;
         }
     }
 

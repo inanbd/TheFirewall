@@ -206,20 +206,9 @@ jobs:
 
               Write-Host '   Listening ports as the service sees them:'
               & $svc ports | Write-Host
-              Write-Host '   Diagnostic: the "Windows Feature Experience Pack" rules:'
-              $fep = @(Get-NetFirewallRule -DisplayName 'Windows Feature Experience Pack' -ErrorAction SilentlyContinue)
-              Write-Host "   count: $($fep.Count)"
-              $fep | Select-Object -First 2 | ForEach-Object {
-                $_ | Format-List Name, DisplayName, Direction, Action, Enabled, Profile, Owner, PolicyStoreSource, PolicyStoreSourceType, EdgeTraversalPolicy | Out-String | Write-Host
-                $_ | Get-NetFirewallApplicationFilter | Format-List Program, Package | Out-String | Write-Host
-                $_ | Get-NetFirewallPortFilter | Format-List Protocol, LocalPort, RemotePort | Out-String | Write-Host
-                $_ | Get-NetFirewallAddressFilter | Format-List LocalAddress, RemoteAddress | Out-String | Write-Host
-                $_ | Get-NetFirewallServiceFilter | Format-List Service | Out-String | Write-Host
-                $_ | Get-NetFirewallSecurityFilter | Format-List Authentication, Encryption, OverrideBlockRules, LocalUser, RemoteUser, RemoteMachine | Out-String | Write-Host
-                $_ | Get-NetFirewallInterfaceTypeFilter | Format-List InterfaceType | Out-String | Write-Host
-              }
               $before = @((& $svc ports | Out-String) -split "`r?`n" | Where-Object { $_ -match '^TCP\s+45678\b' })
-              if ($before -match 'Feature Experience Pack|OOBE') { throw "A store-app rule was counted for an ordinary program: $before" }
+              # Windows Server 2025 has an allow-everything rule owned by SYSTEM; it must not count for this non-SYSTEM program.
+              if ($before -match 'Feature Experience Pack|OOBE') { throw "A rule owned by another account was counted for this program: $before" }
 
               Set-CiPort 'Nobody'
               $rules = Get-CiRules

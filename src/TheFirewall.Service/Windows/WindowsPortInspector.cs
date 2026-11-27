@@ -34,7 +34,7 @@ internal sealed class WindowsPortInspector(WindowsFirewallBackend firewall) : IP
         endpoints.AddRange(ReadTable(tcp: false, AfInet6).Where(e => e.Port < FirstDynamicPort));
 
         var services = ServicesByProcess();
-        var processes = new Dictionary<int, (string? Name, string? Path)>();
+        var processes = new Dictionary<int, (string? Name, string? Path, string? UserSid)>();
         var result = new List<ListeningPort>();
         foreach (var group in endpoints.GroupBy(e => (e.Protocol, e.Port, e.Pid)))
         {
@@ -53,6 +53,8 @@ internal sealed class WindowsPortInspector(WindowsFirewallBackend firewall) : IP
                 ProcessId = group.Key.Pid,
                 ProcessName = process.Name,
                 ProcessPath = process.Path,
+                UserSid = process.UserSid,
+                UserName = WindowsFirewallBackend.AccountName(process.UserSid),
                 ServiceNames = [.. hosted.Select(s => s.Name)],
                 Services = [.. hosted.Select(s => s.DisplayName)],
             });
@@ -139,20 +141,22 @@ internal sealed class WindowsPortInspector(WindowsFirewallBackend firewall) : IP
         return rows;
     }
 
-    private static (string? Name, string? Path) DescribeProcess(int pid)
+    private static (string? Name, string? Path, string? UserSid) DescribeProcess(int pid)
     {
+        const string LocalSystem = "S-1-5-18";
         if (pid == 0)
         {
-            return ("System Idle Process", null);
+            return ("System Idle Process", null, LocalSystem);
         }
 
         if (pid == 4)
         {
             // The kernel (http.sys, SMB, WinRM listeners...). Firewall rules for it use the program name "System".
-            return ("System", "System");
+            return ("System", "System", LocalSystem);
         }
 
         string? path = null;
+        string? userSid = null;
         var handle = OpenProcess(ProcessQueryLimitedInformation, false, pid);
         if (handle != IntPtr.Zero)
         {
@@ -164,6 +168,8 @@ internal sealed class WindowsPortInspector(WindowsFirewallBackend firewall) : IP
                 {
                     path = builder.ToString(0, length);
                 }
+
+                userSid = ProcessUserSid(handle);
             }
             finally
             {
@@ -185,7 +191,30 @@ internal sealed class WindowsPortInspector(WindowsFirewallBackend firewall) : IP
             }
         }
 
-        return (name, path);
+        return (name, path, userSid);
+    }
+
+    /// <summary>SID of the account a process runs as (needs the process token; null for protected processes).</summary>
+    private static string? ProcessUserSid(IntPtr process)
+    {
+        if (!OpenProcessToken(process, TokenQuery, out var token))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var identity = new System.Security.Principal.WindowsIdentity(token);
+            return identity.User?.Value;
+        }
+        catch (Exception ex) when (ex is ArgumentException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return null;
+        }
+        finally
+        {
+            CloseHandle(token);
+        }
     }
 
     /// <summary>Windows services by the process that hosts them (several services can share one svchost.exe).</summary>
@@ -250,6 +279,7 @@ internal sealed class WindowsPortInspector(WindowsFirewallBackend firewall) : IP
     }
 
     private const int ProcessQueryLimitedInformation = 0x1000;
+    private const int TokenQuery = 0x0008;
     private const int ScManagerEnumerateService = 0x0004;
     private const int ScEnumProcessInfo = 0;
     private const int ServiceWin32 = 0x30;
@@ -285,6 +315,9 @@ internal sealed class WindowsPortInspector(WindowsFirewallBackend firewall) : IP
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, int access, out IntPtr token);
 
     [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern IntPtr OpenSCManager(string? machine, string? database, int access);
